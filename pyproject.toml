@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codecrew"
+version = "0.1.0"
+description = "Multi-agent CrewAI system: Researcher, Coder, and Reviewer collaborate to build complete projects from natural language task descriptions."
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+license = {text = "MIT"}
+authors = [
+    {name = "CodeCrew Team"}
+]
+
+dependencies = [
+    "crewai[tools]>=0.86.0",
+    "python-dotenv>=1.0.0",
+    "langchain-community>=0.3.0",
+    "langchain-groq>=0.2.0",
+    "langchain-ollama>=0.2.0",
+    "duckduckgo-search>=6.0.0",
+    "litellm>=1.0.0",
+]
+
+[project.optional-dependencies]
+serper = ["google-serper-api>=0.1.0"]
+tavily = ["tavily-python>=0.5.0"]
+exa = ["exa-py>=1.0.0"]
+openai = ["langchain-openai>=0.2.0"]
+anthropic = ["langchain-anthropic>=0.2.0"]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=5.0.0",
+]
+queue = [
+    "celery>=5.4.0",
+    "redis>=5.0.0"
+]
+all = [
+    "codecrew[serper,tavily,exa,openai,anthropic,dev,queue]",
+]
+
+[project.scripts]
+codecrew = "codecrew.main:run"
+codecrew-submit = "codecrew.queue_cli:submit"
+codecrew-status = "codecrew.queue_cli:status"
+codecrew-worker = "codecrew.queue_cli:worker"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

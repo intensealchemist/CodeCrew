@@ -1,0 +1,187 @@
+research_task:
+  description: >
+    Research and create a detailed technical specification for the following project:
+    
+    **Task:** {task}
+    
+    Your specification MUST include:
+    1. **Project Overview**: Clear description of what needs to be built
+    2. **Tech Stack**: Specific languages, frameworks, and libraries to use (with versions)
+    3. **Architecture**: High-level architecture pattern (MVC, microservices, etc.)
+    4. **Project Structure**: Complete directory tree showing every file that needs to be created
+    5. **Core Features**: Detailed list of features with implementation notes
+    6. **Data Models**: Database schema or data structures needed
+    7. **API Design**: Endpoints/interfaces if applicable
+    8. **Dependencies**: Complete list of external packages with their purpose
+    9. **Testing Strategy**: What types of tests to write and what to test
+    10. **Security Considerations**: Authentication, input validation, etc.
+    
+    Be specific and actionable. The developer should be able to follow your spec
+    without any additional research.
+  expected_output: >
+    A comprehensive technical specification document in markdown format containing
+    all 10 sections listed above. Each section should have enough detail for a
+    developer to implement without ambiguity.
+  agent: researcher
+
+architecture_task:
+  description: >
+    Using the research specification provided, create a detailed architectural blueprint
+    for the following project:
+    
+    **Task:** {task}
+    
+    Your blueprint MUST include:
+    1. **Architecture Pattern**: Which pattern to use (MVC, Clean Architecture, Hexagonal, etc.) and WHY
+    2. **Folder Structure**: Complete directory tree with every file and its purpose
+    3. **Component Diagram**: How modules/classes interact (describe as a text diagram)
+    4. **Interface Contracts**: Key interfaces, abstract classes, or protocols with method signatures
+    5. **Data Flow**: How data moves through the system from input to output
+    6. **Dependency Graph**: Which modules depend on which, and the initialization order
+    7. **Design Decisions**: ADRs (Architecture Decision Records) for key choices
+    8. **Error Handling Strategy**: How errors propagate and are handled at each layer
+    
+    Write the blueprint document using the **File Writer** tool as ARCHITECTURE.md in the
+    project root. Be specific and opinionated — the developer should never have to guess
+    what pattern or structure to use.
+  expected_output: >
+    A comprehensive ARCHITECTURE.md document with all 8 sections above. The blueprint
+    should be detailed enough that a developer can implement the entire project by following
+    it without making any architectural decisions themselves.
+  agent: architect
+
+coding_task:
+  description: >
+    Based on the architecture blueprint and research specification provided, build the
+    COMPLETE project.
+    
+    **Original Task:** {task}
+    
+    You MUST:
+    1. Follow the folder structure and architecture defined in ARCHITECTURE.md exactly
+    2. Create every single file specified in the blueprint
+    3. Write complete, working code — no placeholders, no TODOs, no "implement here"
+    4. Implement all interface contracts defined by the architect
+    5. Include proper error handling following the strategy in the blueprint
+    6. Create a requirements.txt or package.json (depending on the tech stack)
+    7. Add inline comments for complex logic
+    8. Add basic validation/sanity checks for external inputs at system boundaries
+    9. Prefer explicit, beginner-readable code over clever but opaque shortcuts
+    10. Create at least one automated smoke test path (or test scaffold if framework setup is required)
+    
+    Use the **File Writer** tool to create each file. Create files one at a time,
+    starting with configuration files, then core modules, then entry points, then README.
+    Use the **Code Executor** tool after implementation to run at least one appropriate
+    validation command (for example: lint, type-check, build, or tests depending on stack).
+    If a command fails, fix issues and rerun once before finalizing.
+    
+    IMPORTANT: Write COMPLETE file contents every time. Never write partial files.
+    Before finalizing, perform a self-check against this rubric:
+    - Correctness: core features from spec implemented
+    - Robustness: edge cases and error paths handled
+    - Security hygiene: no obvious unsafe defaults or hardcoded secrets
+    - Operability: project has runnable setup commands and dependency manifests
+  expected_output: >
+    A complete project with all source files, configuration files, and dependency manifests
+    written to the output directory. Provide a summary listing every file created and a
+    brief description of what each file does, noting which architectural components each
+    file belongs to.
+  agent: coder
+
+review_task:
+  description: >
+    Review the entire codebase that was just generated for this project:
+    
+    **Original Task:** {task}
+    
+    Perform a thorough code review:
+    1. **Read every file** using the directory reader and file reader tools
+    2. **Check syntax** by running the code through the appropriate interpreter/compiler
+    3. **Write unit tests** covering the core functionality, edge cases, and error handling
+    4. **Run the tests** using the Code Executor tool
+    5. **Check for bugs**: logic errors, off-by-one errors, null/undefined handling
+    6. **Check for security**: SQL injection, XSS, hardcoded secrets, insecure defaults
+    7. **Check completeness**: are all features from the spec implemented?
+    8. **Verify architecture compliance**: does the code follow ARCHITECTURE.md?
+    9. **Fix any critical bugs** you find by rewriting the affected files
+    10. **Fix major bugs when feasible** within this pass (not just report them)
+    11. **Re-run tests after fixes** and report before/after results clearly
+    
+    Use the **File Writer** tool to create test files and fix any buggy source files.
+    Use the **Code Executor** tool to run syntax checks and tests.
+    
+    Produce a final quality report as your output.
+    Be strict with verdicts:
+    - PASS: no known critical/major bugs and tests pass
+    - PASS WITH WARNINGS: no critical bugs, but known limitations remain
+    - FAIL: critical bug, major untested functionality, or broken test run
+  expected_output: >
+    A detailed quality report in markdown format containing:
+    - **Files Reviewed**: List of all files checked
+    - **Tests Written**: List of test files created with test case descriptions
+    - **Test Results**: Output from running the tests
+    - **Bugs Found**: List of bugs with severity (critical/major/minor)
+    - **Bugs Fixed**: Which bugs were fixed and how
+    - **Security Issues**: Any security concerns found
+    - **Architecture Compliance**: Does the code follow the blueprint?
+    - **Quality Verdict**: PASS / PASS WITH WARNINGS / FAIL with justification
+  agent: reviewer
+
+devops_task:
+  description: >
+    Make the generated project deployment-ready. Read the codebase and quality report,
+    then create all infrastructure and CI/CD files for:
+    
+    **Task:** {task}
+    
+    You MUST create:
+    1. **Dockerfile**: Multi-stage build optimized for the project's tech stack
+    2. **docker-compose.yml**: Local development setup with all services (app, DB, cache, etc.)
+    3. **.dockerignore**: Exclude unnecessary files from Docker context
+    4. **GitHub Actions CI**: `.github/workflows/ci.yml` that runs lint, test, and build on push/PR
+    5. **Makefile**: Developer-friendly targets (make dev, make test, make build, make lint, make clean)
+    6. **.env.example**: Template with all environment variables the project needs (no real secrets)
+    
+    Read the project files with the **File Reader** tool first to understand the tech stack,
+    dependencies, and entry points. Then use the **File Writer** tool to create each file.
+    Use the **Code Executor** tool to validate Dockerfile syntax if possible.
+    
+    Follow 12-factor app principles. Never hardcode secrets or environment-specific values.
+  expected_output: >
+    All infrastructure files written to the output directory. Provide a summary of each
+    file created, what it does, and how to use it (e.g., "run `make dev` to start local
+    development", "push to main to trigger CI pipeline").
+  agent: devops_engineer
+
+documentation_task:
+  description: >
+    Produce polished, professional documentation for the entire project:
+    
+    **Task:** {task}
+    
+    Read through ALL existing project files (source code, ARCHITECTURE.md, QUALITY_REPORT.md,
+    Dockerfile, CI config) using the file reading tools, then create or overwrite:
+    
+    1. **README.md**: Comprehensive project README with:
+       - Project title, description, and badges (build status, license)
+       - Features list with brief descriptions
+       - Quick start guide (prerequisites, install, run)
+       - Configuration reference (environment variables, options)
+       - Architecture overview (simplified from ARCHITECTURE.md)
+       - API reference (if applicable)
+       - Docker usage instructions
+       - Contributing section (reference CONTRIBUTING.md)
+       - License
+    2. **API_REFERENCE.md**: Detailed API docs with endpoints, parameters, examples (if applicable)
+    3. **CONTRIBUTING.md**: How to set up dev environment, code style, PR process, issue guidelines
+    4. **CHANGELOG.md**: Initial changelog entry documenting v1.0.0 features
+    
+    Use the **File Writer** tool to create each documentation file.
+    Make the documentation welcoming, accurate, and complete.
+    Ensure docs explicitly reflect known caveats from QUALITY_REPORT.md so the
+    README does not overclaim functionality.
+  expected_output: >
+    All documentation files written to the output directory. Provide a summary listing
+    each document created and its key sections. The README should be comprehensive enough
+    to serve as the project's landing page.
+  agent: doc_writer
