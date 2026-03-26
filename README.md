@@ -1,6 +1,6 @@
 # 🚀 CodeCrew — Multi-Agent AI Code Generator
 
-CodeCrew is a **multi-agent system** powered by [CrewAI](https://crewai.com) that turns natural-language task descriptions into **complete, working codebases** — with README, tests, and a Git repo.
+CodeCrew is a **multi-agent system** powered by [CrewAI](https://crewai.com) that turns natural-language task descriptions into **complete, working codebases** — with README, tests, and a Git repo. Custom built with a **Next.js Fullstack UI** for visualizing the agent workflow in real-time.
 
 > *"build a todo app with auth"* → Full source code + tests + README + Git repo ✨
 
@@ -9,7 +9,7 @@ CodeCrew is a **multi-agent system** powered by [CrewAI](https://crewai.com) tha
 ## 🏗️ Architecture
 
 ```
-User Input ("build todo app with auth")
+User Input (via CLI or Next.js Web UI)
          │
          ▼
 ┌─────────────────┐
@@ -45,8 +45,20 @@ User Input ("build todo app with auth")
    📦 Git Repo + Docs + Tests + CI/CD
 ```
 
-**Agents run sequentially** with shared memory. Each agent can use tools (web search, file writer, code executor) and can optionally pause for human approval.
+**Agents run sequentially** with shared memory. The process can be triggered either via the traditional CLI or the included **Next.js Web UI**, which streams agent progress and allows downloading of the generated files.
 
+---
+
+## 🎨 Next.js Web UI
+
+CodeCrew includes a high-end, responsive Next.js frontend built with TailwindCSS and Framer Motion for visualizing jobs. 
+
+1. Navigate to the frontend directory: `cd frontend`
+2. Install dependencies: `npm install`
+3. Start the dev server: `npm run dev`
+4. Open [http://localhost:3000](http://localhost:3000)
+
+The Next.js API routes will automatically spin up the background Python CLI process and stream the agent logs to a beautiful, glassmorphic UI terminal workspace.
 
 ---
 
@@ -146,6 +158,9 @@ CodeCrew/
 │   │   └── code_executor.py # Run shell commands with timeout
 │   ├── crew.py              # Crew orchestration
 │   └── main.py              # CLI entry point
+├── frontend/                # Next.js Web UI
+│   ├── app/                 # React components & Server API routes
+│   └── lib/                 # Node.js Job Store for CLI spawning
 ├── tests/
 ├── .env.example
 ├── pyproject.toml
