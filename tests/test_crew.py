@@ -96,3 +96,17 @@ class TestProviders:
         from codecrew.providers.llm_provider import get_llm
         with pytest.raises(ValueError, match="Unknown LLM_PROVIDER"):
             get_llm()
+
+    def test_get_llm_llamacpp(self):
+        """Should initialize llama.cpp via openai/ proxy."""
+        os.environ["LLM_PROVIDER"] = "llama.cpp"
+        # Optional override
+        os.environ["LLAMACPP_BASE_URL"] = "http://test-local:8080/v1"
+        from codecrew.providers.llm_provider import get_llm
+        llm = get_llm()
+        assert llm is not None
+        assert llm.base_url == "http://test-local:8080/v1"
+        assert llm.api_key == "sk-no-key-required"
+        # Cleanup
+        del os.environ["LLM_PROVIDER"]
+        del os.environ["LLAMACPP_BASE_URL"]

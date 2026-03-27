@@ -1,64 +1,64 @@
-# 🚀 CodeCrew — Multi-Agent AI Code Generator
+<div align="center">
 
-CodeCrew is a **multi-agent system** powered by [CrewAI](https://crewai.com) that turns natural-language task descriptions into **complete, working codebases** — with README, tests, and a Git repo. Custom built with a **Next.js Fullstack UI** for visualizing the agent workflow in real-time.
+# 🚀 CodeCrew
 
-> *"build a todo app with auth"* → Full source code + tests + README + Git repo ✨
+**Multi-Agent AI Code Generator**
+
+Turn natural-language task descriptions into **complete, working codebases** — complete with READMEs, tests, and standard Git repositories. Powered by a robust CrewAI backend and visualized through a high-end Next.js Web UI.
+
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg?logo=python&logoColor=white)](#)
+[![Next.js](https://img.shields.io/badge/Next.js-14+-black.svg?logo=nextdotjs&logoColor=white)](#)
+[![CrewAI](https://img.shields.io/badge/CrewAI-Powered-orange.svg)](#)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](#)
+
+> *"build a full-stack Next.js app with auth and PostgreSQL"* → **Full source code + tests + README + Git repo ✨**
+
+</div>
 
 ---
 
-## 🏗️ Architecture
+## ✨ Key Features
 
-```
-User Input (via CLI or Next.js Web UI)
-         │
-         ▼
-┌─────────────────┐
-│  🔍 Researcher  │  Gathers specs, best practices, architecture patterns
-└────────┬────────┘
-         │ research output
-         ▼
-┌─────────────────┐
-│  📐 Architect   │  Designs system structure, patterns, interfaces
-└────────┬────────┘
-         │ architecture blueprint
-         ▼
-┌─────────────────┐
-│  💻 Coder       │  Writes complete production code following the blueprint
-└────────┬────────┘
-         │ full codebase
-         ▼
-┌─────────────────┐
-│  🔎 Reviewer    │  Reviews, writes tests, bug reports, quality verdict
-└────────┬────────┘
-         │ reviewed & tested code
-         ▼
-┌─────────────────┐
-│  🐳 DevOps      │  Dockerfile, CI/CD, Makefile, deployment configs
-└────────┬────────┘
-         │ deployment-ready project
-         ▼
-┌─────────────────┐
-│  📝 Doc Writer  │  Polished README, API docs, CONTRIBUTING, CHANGELOG
-└────────┬────────┘
-         │
-         ▼
-   📦 Git Repo + Docs + Tests + CI/CD
-```
+CodeCrew isn't just a prototype generator—it's designed to output production-grade code by mitigating hallucination and enforcing strict workflows.
 
-**Agents run sequentially** with shared memory. The process can be triggered either via the traditional CLI or the included **Next.js Web UI**, which streams agent progress and allows downloading of the generated files.
+- 🧠 **Multi-Agent Architecture**: Six specialized agents (Researcher, Architect, Coder, Reviewer, DevOps, and Doc Writer) run sequentially.
+- 🧱 **Structured Pydantic Handoffs**: Agents communicate using strict schema definitions, completely eliminating ambiguity and placeholder code.
+- 🔄 **Automated Execution Loop**: A built-in *write-lint-test-retry* cycle ensures the code actually works before the job finishes.
+- 🛡️ **Adversarial QA**: A dedicated, rigorous Reviewer agent actively tries to break the Coder's output to find edge cases.
+- 🎨 **Glassmorphic Web UI**: A stunning Next.js 14 frontend with TailwindCSS, Framer Motion, and SSE streaming for live terminal reflections of agent thought processes.
+- 🔌 **Universal Model Routing**: Easily swap between leading local models (DeepSeek, Qwen2.5, Llama 3.3 via Ollama or `llama.cpp`) and Cloud APIs (Groq, Cerebras, Gemini, OpenAI, Anthropic).
+- ☁️ **Cloud GPU Offloading**: Native instructions to offload heavy inference to free Kaggle T4 GPUs via Ngrok, perfect for hardware-constrained setups.
+
+---
+
+## 🏗️ The Agent Pipeline
+
+```mermaid
+graph TD;
+    A[User Input] --> B;
+    B[🔍 Researcher] -- "Specs & Patterns" --> C;
+    C[📐 Architect] -- "System Blueprint (Pydantic)" --> D;
+    D[💻 Coder] -- "Draft Codebase" --> E;
+    E[🛡️ Reviewer] -- "Adversarial QA & Tests" --> F;
+    F{Write-Lint-Test Loop} -- "Fail" --> D;
+    F -- "Pass" --> G;
+    G[🐳 DevOps] -- "CI/CD & Docker" --> H;
+    H[📝 Doc Writer] -- "README & Docs" --> I;
+    I([📦 Final Git Repo deployed to Workspace]);
+```
 
 ---
 
 ## 🎨 Next.js Web UI
 
-CodeCrew includes a high-end, responsive Next.js frontend built with TailwindCSS and Framer Motion for visualizing jobs. 
+CodeCrew features a premium, responsive frontend built with TailwindCSS and Framer Motion to visualize jobs in real time.
 
 1. Navigate to the frontend directory: `cd frontend`
 2. Install dependencies: `npm install`
 3. Start the dev server: `npm run dev`
 4. Open [http://localhost:3000](http://localhost:3000)
 
-The Next.js API routes will automatically spin up the background Python CLI process and stream the agent logs to a beautiful, glassmorphic UI terminal workspace.
+The Next.js API routes automatically proxy background Python execution logs as SSE streams to a beautiful, dark-themed terminal UI.
 
 ---
 
@@ -66,75 +66,90 @@ The Next.js API routes will automatically spin up the background Python CLI proc
 
 ### 1. Prerequisites
 - **Python 3.10+**
-- **Ollama** running locally ([install guide](https://ollama.ai)) — or a Groq API key
+- **Node.js 18+** (for UI)
+- Local LLM engine (`ollama` or `llama.cpp`) OR Cloud Provider Keys.
 
-### 2. Install
+### 2. Environment Setup
 
 ```bash
 # Clone & enter project
+git clone https://github.com/yourusername/CodeCrew.git
 cd CodeCrew
 
 # Create a virtual environment
 python -m venv .venv
-.venv\Scripts\activate   # Windows
-# source .venv/bin/activate  # macOS/Linux
 
-# Install
+# Activate environment
+.venv\Scripts\activate      # Windows
+# source .venv/bin/activate # macOS/Linux
+
+# Install the codecrew package
 pip install -e .
 ```
 
-### 3. Configure
+### 3. Configuration
 
 ```bash
-copy .env.example .env    # Windows
-# cp .env.example .env    # macOS/Linux
+copy .env.example .env      # Windows
+# cp .env.example .env      # macOS/Linux
 ```
+Modify `.env` to configure your preferred model routing (*e.g., `LLM_PROVIDER=groq`, `LLM_PROVIDER=ollama`*).
 
-Edit `.env` with your preferred LLM and search provider.
+### 4. Running Jobs
 
-### 4. Run
+You can trigger generation from the Next.js UI or directly from the CLI:
 
 ```bash
-# Using Ollama (default, free)
+# Basic run with default model
 codecrew --task "build a CLI calculator in Python"
 
-# With human override (asks approval between agents)
-codecrew --task "build a REST API with Flask" --human-override
+# Run with Human-in-the-Loop (prompts for approval between states)
+codecrew --task "build a REST API with FastAPI" --human-override
 
-# Custom output directory
-codecrew --task "build a todo app" --output-dir ./my-project
+# Override LLM provider specifically for this run
+codecrew --task "create a weather dashboard" --provider exa --output-dir ./weather-app
 ```
 
 ---
 
-## 🔧 Configuration
+## 🧠 Advanced Capabilities
 
-### LLM Providers
+### 🌟 Kaggle Free GPU Tunneling (Recommended for Low VRAM)
+If your local machine has less than 8GB VRAM but you need to run large context models locally, use Kaggle's free T4 GPUs.
+1. Spin up a Kaggle Notebook with a GPU T4 x2.
+2. Install tools: `!curl -fsSL https://ollama.com | sh && !pip install pyngrok`
+3. Expose via Ngrok and set your local `.env`:
+   ```env
+   LLM_PROVIDER=ollama
+   OLLAMA_BASE_URL=https://<your-ngrok-url>.ngrok-free.app
+   ```
 
-| Provider    | Cost  | Setup                                  | `LLM_PROVIDER` |
-|------------|-------|----------------------------------------|-----------------|
-| **Ollama** | Free  | Install Ollama, pull a model           | `ollama`        |
-| **Free HA**| Free  | Zero-cost fallback (Groq+Cerebras+Gemini) | `free_ha`       |
-| **Groq**   | Free  | Get API key at console.groq.com        | `groq`          |
-| **Cerebras** | Free| Get API key at cloud.cerebras.ai       | `cerebras`      |
-| **OpenAI** | Paid  | Get API key at platform.openai.com     | `openai`        |
-| **Anthropic** | Paid | Get API key at console.anthropic.com | `anthropic`     |
-
-### Search Providers
-
-| Provider        | Cost  | Key Required | `SEARCH_PROVIDER` |
-|----------------|-------|--------------|--------------------|
-| **DuckDuckGo** | Free  | No           | `duckduckgo`       |
-| **Serper**     | Free* | Yes          | `serper`           |
-| **Tavily**     | Free* | Yes          | `tavily`           |
-| **Exa**        | Free* | Yes          | `exa`              |
-
-*Free tier available
+### 🏎️ Local LLM Optimization (`llama.cpp`)
+CodeCrew is highly tailored for `llama.cpp` efficiency. Flash Attention, KV Cache quantization, and customized Jinja chat templates for system prompt ingestion can easily be dialed in to run state-of-the-art Coder models (like Phi-3.5-mini-instruct) even on an entry-level 4GB VRAM GPU.
 
 ---
 
-## 🧪 Tests
+## 🔧 Supported Integrations
 
+#### LLM Providers
+| Provider | Setup | Key `LLM_PROVIDER` |
+|----------|-------|--------------------|
+| **Ollama** | Local / Kaggle Network | `ollama` |
+| **Free HA** | Zero-cost fallback routing | `free_ha` |
+| **Groq / Cerebras / Gemini** | High-speed cloud APIs | `groq` / `cerebras` / `gemini` |
+| **OpenAI / Anthropic** | Paid cloud APIs | `openai` / `anthropic` |
+
+#### Search / RAG Providers
+| Provider | `SEARCH_PROVIDER` |
+|----------|-------------------|
+| **DuckDuckGo** (Free) | `duckduckgo` |
+| **Tavily / Serper / Exa** | `tavily`, `serper`, `exa` |
+
+---
+
+## 🧪 Testing
+
+The adversarial execution loop ensures most code is logically sound. For developing the CodeCrew core itself:
 ```bash
 pip install -e ".[dev]"
 pytest tests/ -v
@@ -142,33 +157,5 @@ pytest tests/ -v
 
 ---
 
-## 📁 Project Structure
-
-```
-CodeCrew/
-├── src/codecrew/
-│   ├── config/
-│   │   ├── agents.yaml      # Agent definitions
-│   │   └── tasks.yaml       # Task definitions
-│   ├── providers/
-│   │   ├── llm_provider.py  # LLM factory (Ollama/Groq/OpenAI/Anthropic)
-│   │   └── search_provider.py  # Search factory (DDG/Serper/Tavily/Exa)
-│   ├── tools/
-│   │   ├── file_writer.py   # Write files to output workspace
-│   │   └── code_executor.py # Run shell commands with timeout
-│   ├── crew.py              # Crew orchestration
-│   └── main.py              # CLI entry point
-├── frontend/                # Next.js Web UI
-│   ├── app/                 # React components & Server API routes
-│   └── lib/                 # Node.js Job Store for CLI spawning
-├── tests/
-├── .env.example
-├── pyproject.toml
-└── README.md
-```
-
----
-
 ## 📄 License
-
-MIT
+Released under the MIT License.

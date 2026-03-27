@@ -39,7 +39,16 @@ def _run_kickoff_in_child(output_dir: str, human_override: bool, task: str):
     import sys
     sys.stdout.flush()
     sys.stderr.flush()
-    
+
+    # CRITICAL: Re-load .env in the child process. Multiprocessing does NOT
+    # inherit the parent's dotenv state, so env vars like OLLAMA_BASE_URL
+    # would be missing, causing providers to fall back to localhost defaults.
+    # We resolve the path relative to this file so it works regardless of CWD.
+    import pathlib
+    from dotenv import load_dotenv as _load_dotenv
+    _dotenv_path = pathlib.Path(__file__).resolve().parent.parent.parent / '.env'
+    _load_dotenv(dotenv_path=str(_dotenv_path), override=True)
+
     try:
         from codecrew.crew import CodeCrewCrew
         
@@ -103,7 +112,7 @@ Examples:
     load_dotenv(override=True)
 
     # Validate LLM provider configuration
-    provider = os.getenv("LLM_PROVIDER", "ollama").lower()
+    provider = os.getenv("LLM_PROVIDER", "free_ha").lower()
     print(f"\n🤖 LLM Provider: {provider}")
     print(f"🔍 Search Provider: {os.getenv('SEARCH_PROVIDER', 'duckduckgo')}")
 
@@ -113,6 +122,10 @@ Examples:
         print(f"   Model: {model}")
         print(f"   Base URL: {base_url}")
         print(f"   ⚠️  Make sure Ollama is running: ollama serve")
+    elif provider == "llama.cpp":
+        base_url = os.getenv("LLAMACPP_BASE_URL", "http://localhost:8080/v1")
+        print(f"   Base URL: {base_url}")
+        print(f"   ⚠️  Make sure llama-server is running on the specified port")
     elif provider == "groq":
         if not os.getenv("GROQ_API_KEY"):
             print("❌ Error: GROQ_API_KEY not set. Please set it in your .env file.")

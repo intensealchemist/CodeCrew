@@ -1,6 +1,7 @@
 # Environment
 .env
 .env.local
+.env.*.local
 
 # Python
 __pycache__/
@@ -10,6 +11,9 @@ __pycache__/
 dist/
 build/
 *.egg
+.pytest_cache/
+.coverage
+htmlcov/
 
 # Virtual environments
 .venv/
@@ -26,8 +30,20 @@ env/
 .DS_Store
 Thumbs.db
 
-# Project output
+# CodeCrew Project output
 output/
+codecrew_jobs/
 
-# Node Modules
+# Local LLM / Models
+llama/
+models/
+
+# Node environment 
 node_modules/
+npm-debug.log
+yarn-error.log
+
+# Next.js / Frontend
+frontend/.next/
+frontend/out/
+frontend/build/

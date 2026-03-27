@@ -30,4 +30,21 @@ class ThinkTool(BaseTool):
     args_schema: Type[BaseModel] = ThinkInput
 
     def _run(self, thought: str) -> str:
-        return thought
+        try:
+            from codecrew.providers.llm_provider import get_llm
+            import litellm
+            llm = get_llm(role="fast")
+            
+            kwargs = {
+                "model": llm.model,
+                "messages": [{"role": "user", "content": f"You asked yourself: {thought}\nNow answer it thoroughly before proceeding."}]
+            }
+            if hasattr(llm, "api_key") and llm.api_key:
+                kwargs["api_key"] = llm.api_key
+            if hasattr(llm, "base_url") and llm.base_url:
+                kwargs["base_url"] = llm.base_url
+                
+            response = litellm.completion(**kwargs)
+            return response.choices[0].message.content or thought
+        except Exception as e:
+            return f"Thought recorded: {thought}\n(Could not resolve thought: {str(e)})"
