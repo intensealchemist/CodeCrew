@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
-import { jobStore } from "@/lib/job-store";
-import fs from "fs/promises";
-import path from "path";
-import archiver from "archiver";
-import { PassThrough } from "stream";
+
+const FASTAPI_URL = process.env.FASTAPI_URL || "http://127.0.0.1:8000";
 
 export const dynamic = "force-dynamic";
 
@@ -14,30 +11,13 @@ export async function GET(
   const { job_id } = context.params;
 
   try {
-    const jobDir = jobStore.getJobDir(job_id);
-    await fs.access(jobDir); // Check if exists
-
-    // We can't use Next.js standard NextResponse to stream archiver easily without a custom ReadStream, 
-    // but we can create a PassThrough stream.
-    const passThrough = new PassThrough();
-    const archive = archiver("zip", { zlib: { level: 9 } });
-
-    archive.on("error", (err) => {
-      passThrough.destroy(err);
-    });
-
-    archive.pipe(passThrough);
-
-    // Append files from directory, ignoring job_state.json
-    archive.glob("**/*", { 
-      cwd: jobDir, 
-      ignore: ["job_state.json", ".*", ".*/**"] 
-    });
-
-    archive.finalize();
-
-    // @ts-ignore
-    return new Response(passThrough, {
+    const res = await fetch(`${FASTAPI_URL}/api/jobs/${job_id}/download`, { cache: 'no-store' });
+    
+    if (!res.ok) {
+        return NextResponse.json({ error: "Failed to download zip" }, { status: res.status });
+    }
+    
+    return new Response(res.body, {
       status: 200,
       headers: {
         "Content-Type": "application/zip",
@@ -45,6 +25,6 @@ export async function GET(
       },
     });
   } catch (err) {
-    return NextResponse.json({ error: "Failed to download zip" }, { status: 500 });
+    return NextResponse.json({ error: "Backend uncreachable" }, { status: 500 });
   }
 }

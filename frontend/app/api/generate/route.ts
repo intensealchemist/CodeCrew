@@ -1,19 +1,23 @@
 import { NextResponse } from "next/server";
-import { jobStore } from "@/lib/job-store";
+
+const FASTAPI_URL = process.env.FASTAPI_URL || "http://127.0.0.1:8000";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const task = body.task;
-    const provider = body.llm_provider || "free_ha";
 
-    if (!task) {
+    if (!body.task) {
       return NextResponse.json({ error: "Task is required" }, { status: 400 });
     }
 
-    const jobId = await jobStore.createJob(task, provider);
-    
-    return NextResponse.json({ job_id: jobId }, { status: 200 });
+    const res = await fetch(`${FASTAPI_URL}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const data = await res.json();
+    return NextResponse.json(data, { status: res.status });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
