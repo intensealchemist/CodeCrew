@@ -4,6 +4,11 @@ from agentscope.memory import InMemoryMemory
 from agentscope.model import ChatModelBase
 from agentscope.tool import Toolkit
 
+try:
+    from agentscope.agent import DialogAgent
+except ImportError:
+    DialogAgent = ReActAgent
+
 
 def create_researcher(toolkit: Toolkit, model: ChatModelBase, formatter: OpenAIChatFormatter) -> ReActAgent:
     sys_prompt = """

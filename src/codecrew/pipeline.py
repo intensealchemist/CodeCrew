@@ -1,9 +1,13 @@
 import os
 import subprocess
 import agentscope
-from agentscope.agent import UserAgent
 from agentscope.pipeline import SequentialPipeline
 from agentscope.message import Msg
+
+try:
+    from agentscope.agent import UserAgent
+except ImportError:
+    from agentscope.agents import UserAgent
 
 from codecrew.model_configs import build_formatter, build_role_models
 from codecrew.tools import build_toolkit
