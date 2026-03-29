@@ -2,6 +2,28 @@
 
 CodeCrew is an AgentScope-based multi-agent software generation system. You provide one natural-language task, and CodeCrew orchestrates a full generation pipeline that researches requirements, validates specification quality, designs architecture, plans files, writes code, performs QA, and produces documentation in a generated output project.
 
+## Documentation Portal
+
+Comprehensive project documentation is available in the `docs/` directory and can be published as responsive HTML and PDF.
+
+Build documentation dependencies:
+
+```bash
+pip install -e .[docs]
+```
+
+Build responsive HTML:
+
+```bash
+py -m mkdocs build --strict
+```
+
+Build PDF bundle:
+
+```bash
+py -m mkdocs build -f mkdocs-pdf.yml
+```
+
 ## 1) End-to-End System Overview
 
 CodeCrew has three execution surfaces that all use the same core pipeline:

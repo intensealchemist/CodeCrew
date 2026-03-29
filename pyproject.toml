@@ -28,8 +28,15 @@ dev = [
     "pytest>=8.0.0",
     "pytest-cov>=5.0.0",
 ]
+docs = [
+    "mkdocs>=1.6.0",
+    "mkdocs-material>=9.5.30",
+    "mkdocs-with-pdf>=0.9.3",
+    "pymdown-extensions>=10.9",
+]
 all = [
     "codecrew[dev]",
+    "codecrew[docs]",
 ]
 
 [project.scripts]

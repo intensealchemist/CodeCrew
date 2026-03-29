@@ -8,9 +8,12 @@ from typing import Dict
 from fastapi import FastAPI, BackgroundTasks, Request, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import BaseModel
+from dotenv import load_dotenv
 import uvicorn
 import shutil
 import zipfile
+
+load_dotenv(override=True)
 
 app = FastAPI(title="CodeCrew API")
 
@@ -31,7 +34,12 @@ class QueueStream(io.TextIOBase):
         self.original_stdout = original_stdout
 
     def write(self, data):
-        self.original_stdout.write(data)
+        try:
+            self.original_stdout.write(data)
+        except UnicodeEncodeError:
+            target_encoding = getattr(self.original_stdout, "encoding", None) or "utf-8"
+            safe_data = data.encode(target_encoding, errors="replace").decode(target_encoding, errors="replace")
+            self.original_stdout.write(safe_data)
         if data.strip():
             # Send standard stdout lines as 'log' events
             try:

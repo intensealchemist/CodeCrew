@@ -4,11 +4,31 @@ from agentscope.formatter import OpenAIChatFormatter
 from agentscope.model import ChatModelBase, OllamaChatModel, OpenAIChatModel
 
 ROLE_CONFIG = {
-    "reasoning": {"model": "deepseek-r1:14b", "env_url": "OLLAMA_URL_REASONING"},
-    "coding": {"model": "qwen2.5-coder:14b", "env_url": "OLLAMA_URL_CODING"},
-    "structured": {"model": "qwen2.5:7b", "env_url": "OLLAMA_URL_STRUCTURED"},
-    "qa": {"model": "qwen2.5:7b", "env_url": "OLLAMA_URL_STRUCTURED"},
-    "fast": {"model": "qwen2.5:7b", "env_url": "OLLAMA_URL_STRUCTURED"},
+    "reasoning": {
+        "model": "deepseek-r1:14b",
+        "env_model": "OLLAMA_MODEL_REASONING",
+        "env_url": "OLLAMA_URL_REASONING",
+    },
+    "coding": {
+        "model": "qwen2.5-coder:14b",
+        "env_model": "OLLAMA_MODEL_CODING",
+        "env_url": "OLLAMA_URL_CODING",
+    },
+    "structured": {
+        "model": "qwen2.5:7b",
+        "env_model": "OLLAMA_MODEL_STRUCTURED",
+        "env_url": "OLLAMA_URL_STRUCTURED",
+    },
+    "qa": {
+        "model": "qwen2.5:7b",
+        "env_model": "OLLAMA_MODEL_QA",
+        "env_url": "OLLAMA_URL_STRUCTURED",
+    },
+    "fast": {
+        "model": "qwen2.5:7b",
+        "env_model": "OLLAMA_MODEL_FAST",
+        "env_url": "OLLAMA_URL_STRUCTURED",
+    },
 }
 
 
@@ -33,7 +53,7 @@ def build_role_models() -> dict[str, ChatModelBase]:
         fallback_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         return {
             role: OllamaChatModel(
-                model_name=cfg["model"],
+                model_name=os.getenv(cfg["env_model"], cfg["model"]),
                 host=os.getenv(cfg["env_url"], fallback_url),
                 options={"num_ctx": 8192},
             )
