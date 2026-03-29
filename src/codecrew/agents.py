@@ -1,8 +1,11 @@
-from agentscope.agents import ReActAgent, DialogAgent
+from agentscope.agent import ReActAgent
+from agentscope.formatter import OpenAIChatFormatter
 from agentscope.memory import InMemoryMemory
-from agentscope.service import ServiceToolkit
+from agentscope.model import ChatModelBase
+from agentscope.tool import Toolkit
 
-def create_researcher(toolkit: ServiceToolkit) -> ReActAgent:
+
+def create_researcher(toolkit: Toolkit, model: ChatModelBase, formatter: OpenAIChatFormatter) -> ReActAgent:
     sys_prompt = """
 You are a world-class software architect with 20+ years of experience across every major tech stack. 
 Your goal: Thoroughly research and gather all specifications, best practices, architecture patterns, required libraries, and implementation details needed to build the user's requested project.
@@ -26,12 +29,13 @@ If you don't know how to implement something, say so explicitly rather than writ
     return ReActAgent(
         name="Researcher",
         sys_prompt=sys_prompt,
-        model_config_name="reasoning",
+        model=model,
+        formatter=formatter,
         memory=InMemoryMemory(),
-        service_toolkit=toolkit,
+        toolkit=toolkit,
     )
 
-def create_spec_validator() -> DialogAgent:
+def create_spec_validator(model: ChatModelBase, formatter: OpenAIChatFormatter) -> ReActAgent:
     sys_prompt = """
 You are a strict technical specification auditor.
 Your goal is to review the technical specification produced by the researcher and ensure it is mathematically complete.
@@ -44,14 +48,16 @@ Run it through this checklist:
 If there are missing details, you must fill them in completely.
 Output ONLY the fully validated, corrected, and gap-free technical specification document.
 """
-    return DialogAgent(
+    return ReActAgent(
         name="SpecValidator",
         sys_prompt=sys_prompt,
-        model_config_name="structured",
+        model=model,
+        formatter=formatter,
         memory=InMemoryMemory(),
+        max_iters=3,
     )
 
-def create_architect(toolkit: ServiceToolkit) -> ReActAgent:
+def create_architect(toolkit: Toolkit, model: ChatModelBase, formatter: OpenAIChatFormatter) -> ReActAgent:
     sys_prompt = """
 You are a world-class systems architect who bridges the gap between research and implementation. 
 Your goal: Transform the validated research specification into a detailed architectural blueprint. 
@@ -73,12 +79,13 @@ No placeholders or TODOs allowed.
     return ReActAgent(
         name="Architect",
         sys_prompt=sys_prompt,
-        model_config_name="structured",
+        model=model,
+        formatter=formatter,
         memory=InMemoryMemory(),
-        service_toolkit=toolkit,
+        toolkit=toolkit,
     )
 
-def create_file_planner() -> DialogAgent:
+def create_file_planner(model: ChatModelBase, formatter: OpenAIChatFormatter) -> ReActAgent:
     sys_prompt = """
 You are a precise technical project manager. You read the architecture blueprint and produce a strict, ordered JSON execution plan of every file that needs to be created.
 Order the files such that configuration files and base dependencies come first, followed by core modules, then entry points.
@@ -91,14 +98,16 @@ Return ONLY a JSON array of file paths. Example:
   "requirements.txt"
 ]
 """
-    return DialogAgent(
+    return ReActAgent(
         name="FilePlanner",
         sys_prompt=sys_prompt,
-        model_config_name="structured",
+        model=model,
+        formatter=formatter,
         memory=InMemoryMemory(),
+        max_iters=3,
     )
 
-def create_coder(toolkit: ServiceToolkit) -> ReActAgent:
+def create_coder(toolkit: Toolkit, model: ChatModelBase, formatter: OpenAIChatFormatter) -> ReActAgent:
     sys_prompt = """
 You are an elite full-stack developer who writes clean, well-documented, production-ready code.
 Your goal: Write complete, production-quality code for each file in the project plan based on the architecture blueprint.
@@ -115,16 +124,17 @@ Before returning your answer, re-read every file you wrote and verify it has no 
     return ReActAgent(
         name="Coder",
         sys_prompt=sys_prompt,
-        model_config_name="coding",
+        model=model,
+        formatter=formatter,
         memory=InMemoryMemory(),
-        service_toolkit=toolkit,
-        max_iters=50,  # Coding takes many iterations
+        toolkit=toolkit,
+        max_iters=50,
     )
 
-def create_qa_agent(toolkit: ServiceToolkit) -> ReActAgent:
+def create_qa_agent(toolkit: Toolkit, model: ChatModelBase, formatter: OpenAIChatFormatter) -> ReActAgent:
     sys_prompt = """
 You are an Adversarial QA Engineer.
-Your goal: Act as an adversarial reviewer of the whole project built by the coder.
+Your goal: Act as an adversarial QA agent for the whole project built by the coder.
 
 Your ONLY job to be adversarial:
 1. Does every file in the spec actually exist?
@@ -139,12 +149,13 @@ You are NOT allowed to skip critical checks.
     return ReActAgent(
         name="QAAgent",
         sys_prompt=sys_prompt,
-        model_config_name="qa",
+        model=model,
+        formatter=formatter,
         memory=InMemoryMemory(),
-        service_toolkit=toolkit,
+        toolkit=toolkit,
     )
 
-def create_readme_agent(toolkit: ServiceToolkit) -> ReActAgent:
+def create_readme_agent(toolkit: Toolkit, model: ChatModelBase, formatter: OpenAIChatFormatter) -> ReActAgent:
     sys_prompt = """
 You are a Documentation Engineer.
 Your goal: Write accurate setup instructions based on the actual codebase generated.
@@ -156,7 +167,8 @@ You are NOT allowed to write placeholder setup instructions. Your instructions m
     return ReActAgent(
         name="ReadmeAgent",
         sys_prompt=sys_prompt,
-        model_config_name="fast",
+        model=model,
+        formatter=formatter,
         memory=InMemoryMemory(),
-        service_toolkit=toolkit,
+        toolkit=toolkit,
     )

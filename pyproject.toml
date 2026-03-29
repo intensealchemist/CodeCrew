@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "codecrew"
 version = "0.1.0"
-description = "Multi-agent CrewAI system: Researcher, Coder, and Reviewer collaborate to build complete projects from natural language task descriptions."
+description = "Multi-agent AgentScope system that turns natural language task descriptions into complete project codebases."
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
 license = {text = "MIT"}
@@ -14,11 +14,13 @@ authors = [
 ]
 
 dependencies = [
-    "agentscope>=0.1.0",
+    "agentscope>=1.0.18,<2.0.0",
     "python-dotenv>=1.0.0",
     "duckduckgo-search>=6.0.0",
     "fastapi>=0.115.0",
     "uvicorn>=0.32.0",
+    "pydantic>=2.12.5,<2.13.0",
+    "PyYAML>=6.0.0",
 ]
 
 [project.optional-dependencies]

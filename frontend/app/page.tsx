@@ -6,7 +6,7 @@ import type { FormEvent } from "react";
 import { Bot, Sparkles, Server, ArrowRight, Loader2, Play } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-const PROVIDERS = ["free_ha", "groq", "cerebras", "openai", "anthropic", "ollama"] as const;
+const PROVIDERS = ["free_ha", "groq", "cerebras", "openai", "ollama", "llama.cpp"] as const;
 type Provider = (typeof PROVIDERS)[number];
 
 export default function HomePage() {
@@ -89,7 +89,7 @@ export default function HomePage() {
             transition={{ duration: 0.5, delay: 0.4 }}
             className="text-lg text-white/70 max-w-lg mx-auto leading-relaxed"
           >
-            Your AI engineering team. Describe what you want to build, and watch the multi-agent crew write the code.
+            Your AI engineering team. Describe what you want to build, and watch the multi-agent pipeline write the code.
           </motion.p>
         </div>
 
@@ -148,7 +148,7 @@ export default function HomePage() {
                   {loading ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      Deploying Crew...
+                      Starting Pipeline...
                     </>
                   ) : (
                     <>

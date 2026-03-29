@@ -131,12 +131,25 @@ export const jobStore = {
         emitter.emit("log", line);
 
         // Detect agent
-        const agentMatch = line.match(/^## \[([^\]]+)\]/); // Agent name often in markdown headers or brackets
-        if (agentMatch) {
+        const agentMatch = line.match(/^## \[([^\]]+)\]/);
+        const knownAgents = [
+          "Researcher",
+          "SpecValidator",
+          "Architect",
+          "FilePlanner",
+          "Coder",
+          "QAAgent",
+          "ReadmeAgent",
+        ];
+        if (agentMatch && knownAgents.includes(agentMatch[1])) {
           state.current_agent = agentMatch[1];
           emitter.emit("agent", state.current_agent);
-        } else if (line.toLowerCase().includes("researcher")) {
-          // Fallback simple detection
+        } else {
+          const fallback = knownAgents.find((agent) => line.toLowerCase().includes(agent.toLowerCase()));
+          if (fallback) {
+            state.current_agent = fallback;
+            emitter.emit("agent", state.current_agent);
+          }
         }
         
         // Next.js SSE format relies on these emits

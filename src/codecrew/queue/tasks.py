@@ -14,30 +14,25 @@ def run_codecrew_task(self, task_description: str, output_dir: str):
     logger.info(f"Task: {task_description}")
     logger.info(f"Output Directory: {output_dir}")
     
-    # Needs to be imported here to avoid circular dependencies
-    from codecrew.crew import CodeCrewCrew
+    from codecrew.pipeline import CodeCrewPipeline
     
     # Force output directory specifically for this job
     job_output_dir = os.path.abspath(output_dir)
     os.makedirs(job_output_dir, exist_ok=True)
     
     try:
-        crew_instance = CodeCrewCrew(
+        pipeline = CodeCrewPipeline(
             output_dir=job_output_dir,
-            human_override=False # Background tasks cannot be interactive
+            human_override=False
         )
         
-        # Update Celery state to let users see it's actively processing
-        self.update_state(state="RUNNING", meta={"task": task_description, "status": "Agents are thinking..."})
+        self.update_state(state="RUNNING", meta={"task": task_description, "status": "Pipeline is running..."})
         
-        result = crew_instance.crew().kickoff(
-            inputs={"task": task_description}
-        )
+        result = pipeline.run(task=task_description)
         
         logger.info(f"Successfully completed job {self.request.id}")
         
-        # Attempt to pull out the result string or just return success
-        final_result = getattr(result, "raw", str(result))
+        final_result = result.get("content", str(result))
         
         return {
             "status": "success",

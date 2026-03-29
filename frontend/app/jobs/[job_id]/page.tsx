@@ -16,20 +16,22 @@ import {
 type JobStatus = "running" | "completed" | "failed";
 type AgentLabel =
   | "Researcher"
+  | "SpecValidator"
   | "Architect"
+  | "FilePlanner"
   | "Coder"
-  | "Reviewer"
-  | "DevOps"
-  | "Doc Writer"
+  | "QAAgent"
+  | "ReadmeAgent"
   | null;
 
 const PIPELINE_STEPS: AgentLabel[] = [
   "Researcher",
+  "SpecValidator",
   "Architect",
+  "FilePlanner",
   "Coder",
-  "Reviewer",
-  "DevOps",
-  "Doc Writer",
+  "QAAgent",
+  "ReadmeAgent",
 ];
 
 export default function JobPage({ params }: { params: { job_id: string } }) {
@@ -147,7 +149,7 @@ export default function JobPage({ params }: { params: { job_id: string } }) {
               <div className={`w-2 h-2 rounded-full ${status === 'running' ? 'bg-primary animate-pulse' : status === 'failed' ? 'bg-destructive' : 'bg-green-500'}`} />
               Job: {jobId.split("-")[0]}...
             </div>
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-white mb-2">Live Job View</h1>
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-white mb-2">Live Pipeline Run</h1>
             <p className="text-lg text-white/60 max-w-2xl line-clamp-2">
               <span className="font-semibold text-white/80">Task:</span> {task || "Loading..."}
             </p>
@@ -200,7 +202,7 @@ export default function JobPage({ params }: { params: { job_id: string } }) {
           transition={{ delay: 0.1 }}
           className="glass-card rounded-3xl p-6 md:p-8"
         >
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-4 relative">
+          <div className="grid grid-cols-2 md:grid-cols-7 gap-4 relative">
             {/* Connecting lines for desktop */}
             <div className="hidden md:block absolute top-[28px] left-[8%] right-[8%] h-[2px] bg-white/5 -z-10" />
             

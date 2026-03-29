@@ -37,6 +37,9 @@ def duckduckgo_search(query: str) -> str:
     except Exception as e:
         return f"Search error: {str(e)}"
 
+
+duckduckgo_search.name = "DuckDuckGo Search"
+
 def get_search_tool():
     """
     Returns a callable search tool based on the SEARCH_PROVIDER env var.
@@ -48,6 +51,5 @@ def get_search_tool():
 
     if provider == "duckduckgo":
         return duckduckgo_search
-    else:
-        # Fallback to DDG for now, since we removed crewai_tools.
-        return duckduckgo_search
+
+    raise ValueError(f"Unknown SEARCH_PROVIDER: {provider}")

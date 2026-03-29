@@ -80,7 +80,7 @@ export default function FilesPage({ params }: { params: { job_id: string } }) {
               className="inline-flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors mb-4 group"
             >
               <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
-              Back to Job Tracker
+              Back to Pipeline Run
             </Link>
             <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
               <FileCode2 className="w-8 h-8 text-primary" />

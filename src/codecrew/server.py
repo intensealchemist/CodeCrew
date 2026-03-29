@@ -51,10 +51,10 @@ def _save_job_state(job_id: str, state: dict):
         json.dump(state, f)
 
 
-async def run_pipeline_job(job_id: str, task: str):
+async def run_pipeline_job(job_id: str, task: str, llm_provider: str):
     from codecrew.pipeline import CodeCrewPipeline
     
-    state = {"status": "running", "task": task, "current_agent": None}
+    state = {"status": "running", "task": task, "current_agent": None, "llm_provider": llm_provider}
     job_status[job_id] = state
     _save_job_state(job_id, state)
     
@@ -65,8 +65,9 @@ async def run_pipeline_job(job_id: str, task: str):
     sys.stdout = QueueStream(queue, original_stdout)
     
     try:
+        previous_llm_provider = os.environ.get("LLM_PROVIDER")
+        os.environ["LLM_PROVIDER"] = llm_provider
         pipeline = CodeCrewPipeline(output_dir=output_dir, human_override=False)
-        # In a generic pipeline, AgentScope will log to stdout
         pipeline.run(task=task)
         
         state["status"] = "completed"
@@ -87,6 +88,10 @@ async def run_pipeline_job(job_id: str, task: str):
         queue.put_nowait({"type": "error", "message": str(e)})
         queue.put_nowait({"type": "done"})
     finally:
+        if previous_llm_provider is None:
+            os.environ.pop("LLM_PROVIDER", None)
+        else:
+            os.environ["LLM_PROVIDER"] = previous_llm_provider
         sys.stdout = original_stdout
 
 
@@ -95,7 +100,7 @@ async def generate(request: GenerateRequest, background_tasks: BackgroundTasks):
     job_id = f"job-{uuid.uuid4().hex[:8]}"
     job_queues[job_id] = asyncio.Queue()
     
-    background_tasks.add_task(run_pipeline_job, job_id, request.task)
+    background_tasks.add_task(run_pipeline_job, job_id, request.task, request.llm_provider)
     return {"job_id": job_id}
 
 @app.get("/api/jobs/{job_id}")

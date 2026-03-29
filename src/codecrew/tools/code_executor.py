@@ -1,4 +1,5 @@
 import subprocess
+import sys
 
 def execute_command(command: str, working_directory: str = "./output") -> str:
     """
@@ -24,6 +25,12 @@ def execute_command(command: str, working_directory: str = "./output") -> str:
             return f"Error: Blocked potentially dangerous command containing '{pattern}'."
 
     try:
+        normalized_command = command.strip()
+        if normalized_command.lower() == "python":
+            command = f"\"{sys.executable}\""
+        elif normalized_command.lower().startswith("python "):
+            command = f"\"{sys.executable}\"{normalized_command[6:]}"
+
         result = subprocess.run(
             command,
             shell=True,

@@ -1,10 +1,11 @@
 import os
 import subprocess
 import agentscope
+from agentscope.agent import UserAgent
 from agentscope.pipeline import SequentialPipeline
 from agentscope.message import Msg
 
-from codecrew.model_configs import build_model_configs
+from codecrew.model_configs import build_formatter, build_role_models
 from codecrew.tools import build_toolkit
 from codecrew.agents import (
     create_researcher,
@@ -23,35 +24,37 @@ class CodeCrewPipeline:
 
     def run(self, task: str) -> dict:
         studio_url = os.getenv("STUDIO_URL", "http://127.0.0.1:5000")
-        
-        # Extract init args. Only include studio_url if running agent scope studio.
-        agentscope.init(
-            project="CodeCrew",
-            name="Implementation",
-            model_configs=build_model_configs(),
-            studio_url=studio_url
-        )
+        use_studio = os.getenv("AGENTSCOPE_USE_STUDIO", "false").strip().lower() == "true"
+
+        init_kwargs = {"project": "CodeCrew", "name": "Implementation"}
+        if use_studio:
+            init_kwargs["studio_url"] = studio_url
+
+        agentscope.init(**init_kwargs)
+
+        models = build_role_models()
+        formatter = build_formatter()
 
         research_toolkit = build_toolkit("research", self.output_dir)
+        architect_toolkit = build_toolkit("architect", self.output_dir)
         coding_toolkit = build_toolkit("coding", self.output_dir)
         qa_toolkit = build_toolkit("qa", self.output_dir)
+        docs_toolkit = build_toolkit("docs", self.output_dir)
 
-        researcher = create_researcher(research_toolkit)
-        spec_validator = create_spec_validator()
-        architect = create_architect(research_toolkit)
-        file_planner = create_file_planner()
-        coder = create_coder(coding_toolkit)
-        qa_agent = create_qa_agent(qa_toolkit)
-        readme_agent = create_readme_agent(qa_toolkit)
+        researcher = create_researcher(research_toolkit, models["reasoning"], formatter)
+        spec_validator = create_spec_validator(models["structured"], formatter)
+        architect = create_architect(architect_toolkit, models["structured"], formatter)
+        file_planner = create_file_planner(models["structured"], formatter)
+        coder = create_coder(coding_toolkit, models["coding"], formatter)
+        qa_agent = create_qa_agent(qa_toolkit, models["qa"], formatter)
+        readme_agent = create_readme_agent(docs_toolkit, models["fast"], formatter)
 
         agents = [
             researcher, spec_validator, architect,
             file_planner, coder, qa_agent, readme_agent
         ]
         
-        # Insert human-in-the-loop validation via AgentScope UserAgent
         if self.human_override:
-            from agentscope.agents import UserAgent
             user_agent = UserAgent(name="User")
             agents = [
                 researcher, spec_validator, user_agent, 
@@ -70,12 +73,10 @@ class CodeCrewPipeline:
         
         initial_msg = Msg(name="user", content=f"Build the following project: {task}", role="user")
         
-        # Execute pipeline
         result = pipeline(initial_msg)
         
         self._finalize_project()
         
-        # Serialize result logic (as pipeline result is usually a Msg or similar)
         if isinstance(result, Msg):
             return {"content": result.content}
         return {"content": str(result)}

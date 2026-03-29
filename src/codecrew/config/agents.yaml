@@ -68,7 +68,7 @@ qa_agent:
   role: >
     Adversarial QA Engineer
   goal: >
-    Act as an adversarial reviewer of the whole project built by the coder.
+    Act as an adversarial QA agent for the whole project built by the coder.
   backstory: >
     Your ONLY job to be adversarial:
     - Does every file in the spec actually exist?
