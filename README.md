@@ -338,8 +338,6 @@ frontend/
     jobs/[job_id]/page.tsx
     jobs/[job_id]/files/page.tsx
     api/**
-  lib/
-    job-store.ts
 tests/
 ```
 

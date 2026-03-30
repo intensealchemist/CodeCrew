@@ -169,6 +169,28 @@ async def get_files(job_id: str):
             
     return {"files": files_list}
 
+
+@app.get("/api/jobs/{job_id}/files/{file_path:path}")
+async def get_file_content(job_id: str, file_path: str):
+    job_dir = os.path.join(OUTPUT_BASE, job_id)
+    if not os.path.exists(job_dir):
+        raise HTTPException(status_code=404, detail="Job directory not found")
+
+    target_path = os.path.abspath(os.path.join(job_dir, file_path))
+    if os.path.commonpath([job_dir, target_path]) != job_dir:
+        raise HTTPException(status_code=400, detail="Invalid path")
+
+    if not os.path.isfile(target_path):
+        raise HTTPException(status_code=404, detail="File not found")
+
+    try:
+        with open(target_path, "r", encoding="utf-8") as f:
+            content = f.read()
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="File is not UTF-8 text")
+
+    return {"content": content}
+
 @app.get("/api/jobs/{job_id}/download")
 async def download_job(job_id: str):
     job_dir = os.path.join(OUTPUT_BASE, job_id)
