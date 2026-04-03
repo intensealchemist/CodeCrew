@@ -8,11 +8,16 @@ import { motion, AnimatePresence } from "framer-motion";
 
 const PROVIDERS = ["free_ha", "groq", "cerebras", "openai", "ollama", "llama.cpp"] as const;
 type Provider = (typeof PROVIDERS)[number];
+const CONFIGURED_PROVIDER = process.env.NEXT_PUBLIC_DEFAULT_LLM_PROVIDER;
+const DEFAULT_PROVIDER: Provider =
+  CONFIGURED_PROVIDER && PROVIDERS.includes(CONFIGURED_PROVIDER as Provider)
+    ? (CONFIGURED_PROVIDER as Provider)
+    : "ollama";
 
 export default function HomePage() {
   const router = useRouter();
   const [task, setTask] = useState<string>("");
-  const [provider, setProvider] = useState<Provider>("free_ha");
+  const [provider, setProvider] = useState<Provider>(DEFAULT_PROVIDER);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

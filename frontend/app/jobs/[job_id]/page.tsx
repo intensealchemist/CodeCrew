@@ -207,7 +207,9 @@ export default function JobPage({ params }: { params: { job_id: string } }) {
             <div className="hidden md:block absolute top-[28px] left-[8%] right-[8%] h-[2px] bg-white/5 -z-10" />
             
             {PIPELINE_STEPS.map((label, idx) => {
-              const isDone = status === "completed" ? idx <= (currentIdx >= 0 ? currentIdx : idx) : idx < currentIdx;
+              const isDone =
+                idx < currentIdx ||
+                (status === "completed" && currentIdx >= 0 && idx <= currentIdx);
               const isActive = status === "running" && idx === currentIdx;
               const isFailed = status === "failed" && idx === currentIdx;
 

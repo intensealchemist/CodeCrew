@@ -47,3 +47,10 @@ yarn-error.log
 frontend/.next/
 frontend/out/
 frontend/build/
+
+# Mkdocs / Data
+site/
+.data/
+react_agent.py
+react_agent_reply.py
+test_regex.py

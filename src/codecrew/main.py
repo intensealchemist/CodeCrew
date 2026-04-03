@@ -11,6 +11,10 @@ import sys
 import argparse
 import warnings
 
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+
 # Enable UTF-8 output on Windows to support emojis
 if sys.platform == "win32":
     os.environ["PYTHONIOENCODING"] = "utf-8"
@@ -81,7 +85,8 @@ Examples:
             output_dir=args.output_dir,
             human_override=args.human_override,
         )
-        pipeline.run(task=args.task)
+        import asyncio
+        asyncio.run(pipeline.run(task=args.task))
         
         print(f"\n{'='*60}")
         print(f"  ✅ CodeCrew completed successfully!")

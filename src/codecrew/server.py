@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 import uvicorn
 import shutil
 import zipfile
+import re
 
 load_dotenv(override=True)
 
@@ -29,9 +30,10 @@ class GenerateRequest(BaseModel):
 
 
 class QueueStream(io.TextIOBase):
-    def __init__(self, queue: asyncio.Queue, original_stdout):
+    def __init__(self, queue: asyncio.Queue, original_stdout, on_agent=None):
         self.queue = queue
         self.original_stdout = original_stdout
+        self.on_agent = on_agent
 
     def write(self, data):
         try:
@@ -40,8 +42,17 @@ class QueueStream(io.TextIOBase):
             target_encoding = getattr(self.original_stdout, "encoding", None) or "utf-8"
             safe_data = data.encode(target_encoding, errors="replace").decode(target_encoding, errors="replace")
             self.original_stdout.write(safe_data)
+        marker = re.search(r"\[\[AGENT:([A-Za-z0-9_]+)\]\]", data)
+        if marker:
+            agent = marker.group(1)
+            if self.on_agent:
+                self.on_agent(agent)
+            try:
+                self.queue.put_nowait({"type": "agent", "agent": agent})
+            except asyncio.QueueFull:
+                pass
+            return len(data)
         if data.strip():
-            # Send standard stdout lines as 'log' events
             try:
                 self.queue.put_nowait({"type": "log", "message": data})
             except asyncio.QueueFull:
@@ -59,10 +70,30 @@ def _save_job_state(job_id: str, state: dict):
         json.dump(state, f)
 
 
+def _list_generated_files(job_dir: str) -> list[str]:
+    files_list: list[str] = []
+    for root, dirs, files in os.walk(job_dir):
+        dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ["__pycache__", "node_modules"]]
+        for f in files:
+            if f == "job_state.json":
+                continue
+            full_path = os.path.join(root, f)
+            rel_path = os.path.relpath(full_path, job_dir).replace("\\", "/")
+            files_list.append(rel_path)
+    return files_list
+
+
 async def run_pipeline_job(job_id: str, task: str, llm_provider: str):
     from codecrew.pipeline import CodeCrewPipeline
-    
-    state = {"status": "running", "task": task, "current_agent": None, "llm_provider": llm_provider}
+
+    selected_provider = llm_provider.strip() or os.getenv("LLM_PROVIDER", "free_ha").strip()
+    state = {
+        "status": "running",
+        "task": task,
+        "current_agent": None,
+        "llm_provider": selected_provider,
+        "requested_llm_provider": llm_provider,
+    }
     job_status[job_id] = state
     _save_job_state(job_id, state)
     
@@ -70,13 +101,22 @@ async def run_pipeline_job(job_id: str, task: str, llm_provider: str):
     queue = job_queues[job_id]
     
     original_stdout = sys.stdout
-    sys.stdout = QueueStream(queue, original_stdout)
+
+    def handle_agent(agent: str):
+        state["current_agent"] = agent
+        job_status[job_id] = state
+        _save_job_state(job_id, state)
+
+    sys.stdout = QueueStream(queue, original_stdout, on_agent=handle_agent)
     
     try:
         previous_llm_provider = os.environ.get("LLM_PROVIDER")
-        os.environ["LLM_PROVIDER"] = llm_provider
+        os.environ["LLM_PROVIDER"] = selected_provider
         pipeline = CodeCrewPipeline(output_dir=output_dir, human_override=False)
-        pipeline.run(task=task)
+        await pipeline.run(task=task)
+        generated_files = _list_generated_files(output_dir)
+        if not generated_files:
+            raise RuntimeError("Pipeline completed but generated no files")
         
         state["status"] = "completed"
         job_status[job_id] = state
@@ -156,17 +196,8 @@ async def get_files(job_id: str):
     job_dir = os.path.join(OUTPUT_BASE, job_id)
     if not os.path.exists(job_dir):
         raise HTTPException(status_code=404, detail="Job directory not found")
-        
-    files_list = []
-    for root, dirs, files in os.walk(job_dir):
-        dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ["__pycache__", "node_modules"]]
-        for f in files:
-            if f == "job_state.json":
-                continue
-            full_path = os.path.join(root, f)
-            rel_path = os.path.relpath(full_path, job_dir).replace("\\", "/")
-            files_list.append(rel_path)
-            
+
+    files_list = _list_generated_files(job_dir)
     return {"files": files_list}
 
 

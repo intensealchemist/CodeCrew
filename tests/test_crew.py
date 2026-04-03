@@ -107,3 +107,39 @@ class TestProviders:
 
         with pytest.raises(ValueError, match="Unknown LLM_PROVIDER"):
             get_llm()
+
+    def test_resolve_provider_falls_back_from_ollama_to_free_ha(self, monkeypatch):
+        import codecrew.model_configs as model_configs
+
+        monkeypatch.setenv("GROQ_API_KEY", "test-key")
+        monkeypatch.delenv("CEREBRAS_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.setattr(model_configs, "_http_endpoint_available", lambda url: False)
+
+        assert model_configs.resolve_provider("ollama") == "free_ha"
+
+    def test_resolve_provider_keeps_ollama_when_available(self, monkeypatch):
+        import codecrew.model_configs as model_configs
+
+        monkeypatch.setattr(model_configs, "_http_endpoint_available", lambda url: True)
+
+        assert model_configs.resolve_provider("ollama") == "ollama"
+
+    def test_validate_provider_setup_reports_pinggy_tunnel_failures(self, monkeypatch):
+        import codecrew.model_configs as model_configs
+
+        monkeypatch.setenv("OLLAMA_BASE_URL", "http://fygqh-34-9-238-55.a.free.pinggy.link")
+        monkeypatch.setenv("OLLAMA_URL_REASONING", "http://fygqh-34-9-238-55.a.free.pinggy.link")
+        monkeypatch.setenv("OLLAMA_URL_CODING", "http://iuloq-35-239-39-198.a.free.pinggy.link")
+        monkeypatch.setenv("OLLAMA_URL_STRUCTURED", "http://fygqh-34-9-238-55.a.free.pinggy.link")
+        monkeypatch.setattr(model_configs, "_probe_http_endpoint", lambda url: (False, "host could not be resolved"))
+
+        with pytest.raises(ValueError, match="Pinggy/Kaggle tunnel check"):
+            model_configs.validate_provider_setup("ollama")
+
+    def test_validate_provider_setup_allows_reachable_ollama_endpoints(self, monkeypatch):
+        import codecrew.model_configs as model_configs
+
+        monkeypatch.setattr(model_configs, "_probe_http_endpoint", lambda url: (True, "HTTP 200"))
+
+        model_configs.validate_provider_setup("ollama")
