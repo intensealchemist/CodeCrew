@@ -45,11 +45,11 @@ file_planner:
   role: >
     Implementation File Planner
   goal: >
-    Read the architectural blueprint and produce an ordered list of files to write, considering dependencies.
+    Read the architectural blueprint and produce an ordered JSON array of arrays (dependency layers) of files to write.
   backstory: >
     You are a precise technical project manager. You read the architecture and produce a strict,
-    ordered JSON execution plan of every file that needs to be created, ensuring base dependencies
-    are written first. You are NOT allowed to skip any files from the architecture.
+    ordered JSON execution plan of layers (array of arrays) of every file that needs to be created, ensuring base dependencies
+    are in earlier layers. You are NOT allowed to skip any files from the architecture.
 
 coder:
   role: >

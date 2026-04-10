@@ -11,26 +11,36 @@ ROLE_CONFIG = {
         "model": "deepseek-r1:14b",
         "env_model": "OLLAMA_MODEL_REASONING",
         "env_url": "OLLAMA_URL_REASONING",
+        "num_ctx": 16384,
+        "num_predict": 8192,
     },
     "coding": {
         "model": "qwen2.5-coder:14b",
         "env_model": "OLLAMA_MODEL_CODING",
         "env_url": "OLLAMA_URL_CODING",
+        "num_ctx": 16384,
+        "num_predict": 8192,
     },
     "structured": {
         "model": "qwen2.5:7b",
         "env_model": "OLLAMA_MODEL_STRUCTURED",
         "env_url": "OLLAMA_URL_STRUCTURED",
+        "num_ctx": 12288,
+        "num_predict": 4096,
     },
     "qa": {
         "model": "qwen2.5:7b",
         "env_model": "OLLAMA_MODEL_QA",
         "env_url": "OLLAMA_URL_STRUCTURED",
+        "num_ctx": 12288,
+        "num_predict": 4096,
     },
     "fast": {
         "model": "qwen2.5:7b",
         "env_model": "OLLAMA_MODEL_FAST",
         "env_url": "OLLAMA_URL_STRUCTURED",
+        "num_ctx": 8192,
+        "num_predict": 2048,
     },
 }
 
@@ -42,13 +52,13 @@ def _clean(value: str | None) -> str | None:
 
 
 def _openai_model(model_name: str, api_key: str, base_url: str | None = None) -> ChatModelBase:
-    kwargs: dict[str, str] = {"model_name": model_name, "api_key": api_key}
+    kwargs: dict = {"model_name": model_name, "api_key": api_key}
     if base_url:
-        kwargs["base_url"] = base_url
+        kwargs["client_kwargs"] = {"base_url": base_url}
     return OpenAIChatModel(**kwargs)
 
 
-SUPPORTED_PROVIDERS = ("free_ha", "groq", "cerebras", "openai", "ollama", "llama.cpp")
+SUPPORTED_PROVIDERS = ("free_ha", "groq", "cerebras", "openai", "ollama", "llama.cpp", "bitnet")
 
 
 def _probe_http_endpoint(url: str) -> tuple[bool, str]:
@@ -95,6 +105,16 @@ def _collect_ollama_endpoints() -> dict[str, str]:
 
 def validate_provider_setup(provider: str) -> None:
     normalized = provider.lower().strip()
+    if normalized == "bitnet":
+        base_url = os.getenv("BITNET_BASE_URL", "http://127.0.0.1:8080/v1")
+        ok, detail = _probe_http_endpoint(f"{base_url.rstrip('/')}/models")
+        if not ok:
+            raise ValueError(
+                f"Failed to reach BitNet server at {base_url} ({detail}). "
+                "Make sure bitnet.cpp server is running (see bitnet/README.md)."
+            )
+        return
+
     if normalized != "ollama":
         return
 
@@ -136,6 +156,9 @@ def is_provider_available(provider: str) -> bool:
     if normalized == "llama.cpp":
         base_url = os.getenv("LLAMACPP_BASE_URL", "http://127.0.0.1:8080/v1")
         return _http_endpoint_available(f"{base_url.rstrip('/')}/models")
+    if normalized == "bitnet":
+        base_url = os.getenv("BITNET_BASE_URL", "http://127.0.0.1:8080/v1")
+        return _http_endpoint_available(f"{base_url.rstrip('/')}/models")
     return False
 
 
@@ -167,7 +190,10 @@ def build_role_models() -> dict[str, ChatModelBase]:
             role: OllamaChatModel(
                 model_name=os.getenv(cfg["env_model"], cfg["model"]),
                 host=os.getenv(cfg["env_url"], fallback_url),
-                options={"num_ctx": 8192},
+                options={
+                    "num_ctx": cfg.get("num_ctx", 8192),
+                    "num_predict": cfg.get("num_predict", 4096),
+                },
             )
             for role, cfg in ROLE_CONFIG.items()
         }
@@ -202,6 +228,14 @@ def build_role_models() -> dict[str, ChatModelBase]:
     if provider == "llama.cpp":
         base_url = os.getenv("LLAMACPP_BASE_URL", "http://127.0.0.1:8080/v1")
         model_name = os.getenv("LLAMACPP_MODEL", "llama.cpp")
+        return {
+            role: _openai_model(model_name, "sk-no-key-required", base_url)
+            for role in roles
+        }
+
+    if provider == "bitnet":
+        base_url = os.getenv("BITNET_BASE_URL", "http://127.0.0.1:8080/v1")
+        model_name = os.getenv("BITNET_MODEL", "bitnet-b1.58-2B-4T")
         return {
             role: _openai_model(model_name, "sk-no-key-required", base_url)
             for role in roles

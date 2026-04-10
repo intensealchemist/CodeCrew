@@ -54,3 +54,19 @@ site/
 react_agent.py
 react_agent_reply.py
 test_regex.py
+
+# Local runtime artifacts
+codecrew.db
+*.db
+*.sqlite
+*.sqlite3
+~$*.docx
+*.tmp
+
+# Generated test scripts and reports
+/*.docx
+/Project_Documentation.txt
+/generate_*.py
+/test_*.py
+tests/test_exhaustive.py
+tests/test_react_agent_reply.py

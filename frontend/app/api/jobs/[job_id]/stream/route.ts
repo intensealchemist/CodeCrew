@@ -2,6 +2,7 @@ const FASTAPI_URL = process.env.FASTAPI_URL || "http://127.0.0.1:8000";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const maxDuration = 3600;
 
 export async function GET(
   req: Request,

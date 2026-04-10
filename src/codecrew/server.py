@@ -4,8 +4,9 @@ import uuid
 import json
 import asyncio
 import io
+import hashlib
 from typing import Dict
-from fastapi import FastAPI, BackgroundTasks, Request, HTTPException
+from fastapi import FastAPI, BackgroundTasks, Request, HTTPException, Depends
 from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -13,8 +14,18 @@ import uvicorn
 import shutil
 import zipfile
 import re
+from sqlalchemy.orm import Session
+
+from codecrew.database import SessionLocal
+
+# Import Database Models
+from codecrew.database import engine, Base, get_db
+from codecrew.models import User, Job as DBJob
 
 load_dotenv(override=True)
+
+# Generate SQLite Tables immediately on boot
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="CodeCrew API")
 
@@ -27,6 +38,31 @@ OUTPUT_BASE = os.path.abspath("./output")
 class GenerateRequest(BaseModel):
     task: str
     llm_provider: str = "free_ha"
+    token: str | None = None  # Optional initially so Next.js doesn't crash before UI updates
+
+class AuthRequest(BaseModel):
+    username: str
+    password: str
+
+
+def _get_user_id_from_token(token: str | None) -> int | None:
+    if not token:
+        return None
+    token = token.strip()
+    if token.lower().startswith("bearer "):
+        token = token.split(" ", 1)[1].strip()
+    if not token.startswith("auth_"):
+        return None
+    parts = token.split("_")
+    if len(parts) < 3:
+        return None
+    try:
+        return int(parts[1])
+    except ValueError:
+        return None
+
+def get_password_hash(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
 
 
 class QueueStream(io.TextIOBase):
@@ -96,6 +132,16 @@ async def run_pipeline_job(job_id: str, task: str, llm_provider: str):
     }
     job_status[job_id] = state
     _save_job_state(job_id, state)
+
+    # Persist running status in DB (best effort)
+    db = SessionLocal()
+    try:
+        db_job = db.query(DBJob).filter(DBJob.job_id == job_id).first()
+        if db_job:
+            db_job.status = "running"
+            db.commit()
+    finally:
+        db.close()
     
     output_dir = os.path.join(OUTPUT_BASE, job_id)
     queue = job_queues[job_id]
@@ -121,6 +167,15 @@ async def run_pipeline_job(job_id: str, task: str, llm_provider: str):
         state["status"] = "completed"
         job_status[job_id] = state
         _save_job_state(job_id, state)
+
+        db = SessionLocal()
+        try:
+            db_job = db.query(DBJob).filter(DBJob.job_id == job_id).first()
+            if db_job:
+                db_job.status = "completed"
+                db.commit()
+        finally:
+            db.close()
         
         queue.put_nowait({"type": "job_status", "status": "completed"})
         queue.put_nowait({"type": "files_ready"})
@@ -131,6 +186,15 @@ async def run_pipeline_job(job_id: str, task: str, llm_provider: str):
         state["error_message"] = str(e)
         job_status[job_id] = state
         _save_job_state(job_id, state)
+
+        db = SessionLocal()
+        try:
+            db_job = db.query(DBJob).filter(DBJob.job_id == job_id).first()
+            if db_job:
+                db_job.status = "failed"
+                db.commit()
+        finally:
+            db.close()
         
         queue.put_nowait({"type": "job_status", "status": "failed"})
         queue.put_nowait({"type": "error", "message": str(e)})
@@ -143,12 +207,117 @@ async def run_pipeline_job(job_id: str, task: str, llm_provider: str):
         sys.stdout = original_stdout
 
 
+@app.post("/api/register")
+async def register(request: AuthRequest, db: Session = Depends(get_db)):
+    if db.query(User).filter(User.username == request.username).first():
+        raise HTTPException(status_code=400, detail="Username already registered")
+    
+    user = User(
+        username=request.username,
+        hashed_password=get_password_hash(request.password)
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return {"message": "User successfully registered", "user_id": user.id}
+
+@app.post("/api/login")
+async def login(request: AuthRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == request.username).first()
+    if not user or user.hashed_password != get_password_hash(request.password):
+        raise HTTPException(status_code=401, detail="Incorrect username or password")
+    
+    # In a full setup this would issue a JWT, for now it returns a pseudo-token mapping to the UID
+    token = f"auth_{user.id}_{hashlib.md5(user.username.encode()).hexdigest()}"
+    return {"access_token": token, "token_type": "bearer"}
+
+
+@app.get("/api/me/jobs")
+async def list_my_jobs(request: Request, db: Session = Depends(get_db)):
+    token = request.headers.get("Authorization")
+    user_id = _get_user_id_from_token(token)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+
+    jobs = (
+        db.query(DBJob)
+        .filter(DBJob.user_id == user_id)
+        .order_by(DBJob.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    return {
+        "jobs": [
+            {
+                "job_id": j.job_id,
+                "task": j.task_prompt,
+                "llm_provider": j.llm_provider,
+                "status": j.status,
+                "created_at": j.created_at.isoformat() if j.created_at else None,
+            }
+            for j in jobs
+        ]
+    }
+
+
+@app.get("/api/me")
+async def get_me(request: Request, db: Session = Depends(get_db)):
+    token = request.headers.get("Authorization")
+    user_id = _get_user_id_from_token(token)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    running = db.query(DBJob).filter(DBJob.user_id == user_id, DBJob.status == "running").count()
+    completed = db.query(DBJob).filter(DBJob.user_id == user_id, DBJob.status == "completed").count()
+    failed = db.query(DBJob).filter(DBJob.user_id == user_id, DBJob.status == "failed").count()
+    pending = db.query(DBJob).filter(DBJob.user_id == user_id, DBJob.status == "pending").count()
+
+    return {
+        "id": user.id,
+        "username": user.username,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "job_summary": {
+            "running": running,
+            "completed": completed,
+            "failed": failed,
+            "pending": pending,
+        },
+    }
+
+
 @app.post("/api/generate")
-async def generate(request: GenerateRequest, background_tasks: BackgroundTasks):
+async def generate(request: Request, payload: GenerateRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     job_id = f"job-{uuid.uuid4().hex[:8]}"
     job_queues[job_id] = asyncio.Queue()
     
-    background_tasks.add_task(run_pipeline_job, job_id, request.task, request.llm_provider)
+    # Resolve the pseudo-user if a token is provided
+    user_id = None
+    if payload.token and payload.token.startswith("auth_"):
+        try:
+            user_id = int(payload.token.split("_")[1])
+        except ValueError:
+            pass
+
+    if user_id is None:
+        auth = request.headers.get("Authorization")
+        user_id = _get_user_id_from_token(auth)
+
+    # Log Job Creation in Database
+    db_job = DBJob(
+        job_id=job_id,
+        user_id=user_id,
+        task_prompt=payload.task,
+        llm_provider=payload.llm_provider,
+        status="pending"
+    )
+    db.add(db_job)
+    db.commit()
+    
+    background_tasks.add_task(run_pipeline_job, job_id, payload.task, payload.llm_provider)
     return {"job_id": job_id}
 
 @app.get("/api/jobs/{job_id}")
@@ -182,10 +351,13 @@ async def stream_job(job_id: str, request: Request):
             if await request.is_disconnected():
                 break
             try:
-                msg = await queue.get()
+                msg = await asyncio.wait_for(queue.get(), timeout=15.0)
                 yield f"data: {json.dumps(msg)}\n\n"
                 if msg.get("type") == "done":
                     break
+            except asyncio.TimeoutError:
+                # Send an SSE comment ping to prevent proxy connection timeouts (Undici 300s timeout)
+                yield ": keep-alive\n\n"
             except Exception:
                 break
 
@@ -241,6 +413,39 @@ async def download_job(job_id: str):
                 zipf.write(file_path, archive_name)
                 
     return FileResponse(zip_path, media_type="application/zip", filename=f"codecrew_{job_id}.zip")
+
+
+@app.delete("/api/jobs/{job_id}")
+async def delete_job(job_id: str, request: Request, db: Session = Depends(get_db)):
+    db_job = db.query(DBJob).filter(DBJob.job_id == job_id).first()
+    if not db_job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    # If this job is tied to a user, require matching token.
+    if db_job.user_id is not None:
+        user_id = _get_user_id_from_token(request.headers.get("Authorization"))
+        if not user_id or user_id != db_job.user_id:
+            raise HTTPException(status_code=403, detail="Not allowed")
+
+    # Best-effort: remove in-memory queues/status.
+    job_queues.pop(job_id, None)
+    job_status.pop(job_id, None)
+
+    # Delete output artifacts.
+    job_dir = os.path.join(OUTPUT_BASE, job_id)
+    if os.path.exists(job_dir):
+        shutil.rmtree(job_dir, ignore_errors=True)
+
+    zip_path = os.path.join(OUTPUT_BASE, f"{job_id}.zip")
+    if os.path.exists(zip_path):
+        try:
+            os.remove(zip_path)
+        except OSError:
+            pass
+
+    db.delete(db_job)
+    db.commit()
+    return {"deleted": True, "job_id": job_id}
 
 def serve():
     # Helper to start uvicorn

@@ -199,24 +199,24 @@ def create_file_planner(model: ChatModelBase, formatter: OpenAIChatFormatter) ->
     sys_prompt = """You are a Technical Project Manager specializing in file-level software planning.
 You receive a validated Technical Specification Document and a parsed Architecture Blueprint.
 
-Your task: produce a strictly-ordered JSON array listing EVERY file that must be created to implement
-the project. The ordering MUST satisfy dependency order:
-  1. Config and environment files (e.g., .env.example, pyproject.toml, package.json)
-  2. Base/shared utilities and types
-  3. Core business logic modules
-  4. API routes / controllers
-  5. Entry points (main.py, index.ts, etc.)
-  6. Test files
-  7. Documentation (README.md)
+Your task: produce a strictly-ordered JSON array OF ARRAYS listing EVERY file that must be created to implement
+the project. The outer array represents dependency layers. Files in the same inner array can be generated in parallel.
+The ordering MUST satisfy dependency order:
+  Layer 1. Config, environment files, and root definitions (e.g., .env.example, pyproject.toml, package.json)
+  Layer 2. Base/shared utilities, types, and interfaces
+  Layer 3. Core business logic models and database schemas
+  Layer 4. API routes / controllers
+  Layer 5. Entry points (main.py, index.ts, etc.)
+  Layer 6. Test files and Documentation (README.md)
 
 RULES:
-- Output ONLY the raw JSON array — no markdown fences, no commentary, no explanation.
+- Output ONLY the raw JSON array of arrays — no markdown fences, no commentary, no explanation.
 - Every file from the spec's folder structure section must appear exactly once.
 - Do NOT invent files not in the spec. Do NOT omit files that are in the spec.
 - Use forward slashes for all paths (e.g., "src/utils/helpers.py").
 
 Example output:
-["pyproject.toml","src/__init__.py","src/models/user.py","src/routes/auth.py","tests/test_auth.py","README.md"]
+[["pyproject.toml","src/__init__.py"], ["src/models/user.py"], ["src/routes/auth.py"], ["tests/test_auth.py","README.md"]]
 """
     return DialogAgent(
         name="FilePlanner",
@@ -231,21 +231,21 @@ def build_coder_sys_prompt() -> str:
 You are invoked once per file. The user message always includes:
 - Ordered File Plan
 - Current Target File
+- Auto-Retrieved Context
 
 Your job in this call is to implement ONLY the Current Target File with complete, working,
 production-quality code — no stubs, no TODOs, no placeholders.
 
 Required execution flow for the Current Target File:
-1. Optionally call retrieve_context once with a query about the target file's interfaces, imports, data models, or dependencies.
-2. Write the complete file content for the Current Target File.
-3. Save it using write_file with filepath exactly equal to the Current Target File.
+1. Review the Auto-Retrieved Context. In most cases, it is sufficient.
+2. Only if critically necessary, call retrieve_context once.
+3. Write the complete file content for the Current Target File by calling write_file or execution_loop.
 
 HARD EXECUTION RULES:
 - Implement exactly one file per call: the Current Target File from the user message.
 - Never write a different file path.
-- After any retrieve_context Observation, your NEXT action must be write_file for the Current Target File.
+- Your FIRST action should be write_file or execution_loop if the Auto-Retrieved Context is sufficient.
 - Never call retrieve_context twice in a row for the same file.
-- If retrieve_context is empty or unhelpful, still write the file based on the file plan and architecture.
 - Replace all placeholder tokens in the format example below with real values from the current task.
 - Never copy example file paths literally unless they exactly match the Current Target File.
 - Action Input MUST be valid JSON. Use `:` between keys and values, not `=`.

@@ -138,6 +138,7 @@ Configured in `src/codecrew/model_configs.py`.
 - `cerebras`
 - `openai`
 - `llama.cpp`
+- `bitnet` — Microsoft BitNet b1.58 2B-4T (1-bit, CPU-optimized, see [`bitnet/README.md`](bitnet/README.md))
 - `free_ha`
 
 ### Role-to-model concept
@@ -229,6 +230,87 @@ copy .env.example .env
 ```
 
 Populate `.env` values for your chosen provider.
+
+### Primary Execution Method: Cloud Tunneling (Kaggle/Colab + Pinggy)
+
+Because multi-agent pipelines demand massive token contexts that often hit strict rate limits on free-tier APIs, the **primary and most efficient way** to run CodeCrew is by tunneling a free GPU instance from Kaggle or Google Colab using [Pinggy](https://pinggy.io).
+
+1. Start a Kaggle Notebook with dual T4 GPUs (16GB VRAM each).
+2. Install and launch Ollama silently in a cell shell script:
+   ```bash
+   !curl -fsSL https://ollama.com/install.sh | sh
+   !nohup ollama serve > ollama.log 2>&1 &
+   ```
+3. Pull the optimal models that perfectly fit the 16GB VRAM constraint:
+   - `deepseek-r1:14b` (Reasoning Lane) - ~9GB VRAM
+   - `qwen2.5-coder:14b` (Coding Lane) - ~9GB VRAM
+   - `qwen2.5:7b` (Structured / QA Lanes) - ~5GB VRAM
+   ```bash
+   !ollama pull deepseek-r1:14b
+   !ollama pull qwen2.5-coder:14b
+   !ollama pull qwen2.5:7b
+   ```
+4. Expose the Ollama port to your local machine securely using Pinggy:
+   ```bash
+   !ssh -p 443 -R0:localhost:11434 a.pinggy.io
+   ```
+5. Copy the generated `https://...pinggy.link` URL into your local `.env` and assign the pulled models to their specific lanes:
+   ```env
+   LLM_PROVIDER=ollama
+   OLLAMA_BASE_URL=https://your-tunnel-id.a.pinggy.link
+   OLLAMA_MODEL_REASONING=deepseek-r1:14b
+   OLLAMA_MODEL_CODING=qwen2.5-coder:14b
+   OLLAMA_MODEL_STRUCTURED=qwen2.5:7b
+   ```
+This setup provides free, unlimited commercial-grade output by completely bypassing strict commercial API token limits.
+
+### API-Based Free-to-use setup
+
+If you want the easiest low-cost setup, use the built-in free provider path:
+
+1. Copy `.env.example` to `.env`.
+2. Set `LLM_PROVIDER=free_ha`.
+3. Keep `SEARCH_PROVIDER=duckduckgo` because it is already free and requires no key.
+4. Add at least one free-tier model key:
+   - `GROQ_API_KEY=your_key`
+   - or `CEREBRAS_API_KEY=your_key`
+5. Leave `OPENAI_API_KEY` empty unless you explicitly want OpenAI.
+
+Minimal `.env` example:
+
+```env
+LLM_PROVIDER=free_ha
+SEARCH_PROVIDER=duckduckgo
+GROQ_API_KEY=your_groq_key
+CEREBRAS_API_KEY=
+OPENAI_API_KEY=
+```
+
+Notes:
+
+- `free_ha` works when at least one of `GROQ_API_KEY` or `CEREBRAS_API_KEY` is set.
+- If both are set, CodeCrew can rotate roles across them.
+- DuckDuckGo search is free and does not need extra setup.
+- If you want a fully local no-cloud setup, switch to `LLM_PROVIDER=ollama` and run your own Ollama endpoint instead.
+- For ultra-lightweight local inference on CPU, try `LLM_PROVIDER=bitnet` with the BitNet b1.58 2B-4T 1-bit model — see [`bitnet/README.md`](bitnet/README.md) for setup.
+
+### Free-to-use quick run
+
+Start the backend:
+
+```bash
+codecrew-server
+```
+
+In a second terminal, start the frontend:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Then open `http://localhost:3000`, choose `free_ha`, and submit your prompt.
 
 ### Start backend API
 

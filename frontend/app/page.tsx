@@ -1,12 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { Bot, Sparkles, Server, ArrowRight, Loader2, Play } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-const PROVIDERS = ["free_ha", "groq", "cerebras", "openai", "ollama", "llama.cpp"] as const;
+const PROVIDERS = ["free_ha", "groq", "cerebras", "openai", "ollama", "llama.cpp", "bitnet"] as const;
 type Provider = (typeof PROVIDERS)[number];
 const CONFIGURED_PROVIDER = process.env.NEXT_PUBLIC_DEFAULT_LLM_PROVIDER;
 const DEFAULT_PROVIDER: Provider =
@@ -20,6 +21,9 @@ export default function HomePage() {
   const [provider, setProvider] = useState<Provider>(DEFAULT_PROVIDER);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(
+    typeof window === "undefined" ? null : localStorage.getItem("codecrew_token"),
+  );
 
   const examples = [
     { title: "Todo app with auth", icon: <Sparkles className="w-4 h-4" /> },
@@ -39,10 +43,19 @@ export default function HomePage() {
 
     setLoading(true);
     try {
+      const storedProvider = localStorage.getItem("codecrew_default_provider");
+      const resolvedProvider =
+        storedProvider && PROVIDERS.includes(storedProvider as Provider)
+          ? (storedProvider as Provider)
+          : provider;
+
       const res = await fetch("/api/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task: trimmed, llm_provider: provider }),
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ task: trimmed, llm_provider: resolvedProvider }),
       });
 
       if (!res.ok) {
@@ -71,6 +84,28 @@ export default function HomePage() {
         transition={{ duration: 0.8, ease: "easeOut" }}
         className="w-full max-w-2xl"
       >
+        <div className="flex items-center justify-end gap-2 mb-6">
+          {token ? (
+            <>
+              <Link href="/dashboard" className="secondary-button">Dashboard</Link>
+              <button
+                className="secondary-button"
+                onClick={() => {
+                  localStorage.removeItem("codecrew_token");
+                  setToken(null);
+                }}
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <Link href="/login" className="secondary-button">Login</Link>
+              <Link href="/register" className="secondary-button">Register</Link>
+            </>
+          )}
+        </div>
+
         <div className="text-center mb-10">
           <motion.div 
             initial={{ scale: 0.9 }}

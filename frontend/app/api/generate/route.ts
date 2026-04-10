@@ -5,6 +5,7 @@ const FASTAPI_URL = process.env.FASTAPI_URL || "http://127.0.0.1:8000";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+    const auth = req.headers.get("authorization");
 
     if (!body.task) {
       return NextResponse.json({ error: "Task is required" }, { status: 400 });
@@ -12,7 +13,10 @@ export async function POST(req: Request) {
 
     const res = await fetch(`${FASTAPI_URL}/api/generate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(auth ? { Authorization: auth } : {}),
+      },
       body: JSON.stringify(body),
     });
 

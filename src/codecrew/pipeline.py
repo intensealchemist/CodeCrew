@@ -5,6 +5,7 @@ import json
 import re
 import io
 import sys
+import asyncio
 from contextlib import redirect_stdout
 import agentscope
 from agentscope.message import Msg
@@ -167,6 +168,7 @@ class CodeCrewPipeline:
         task: str,
         file_plan: list[str],
         target_file: str,
+        context: str = "",
         attempt: int = 1,
         previous_response: str = "",
     ) -> Msg:
@@ -174,9 +176,14 @@ class CodeCrewPipeline:
             f"Original Task: {task}\n\n"
             f"Ordered File Plan (JSON array):\n{json.dumps(file_plan, ensure_ascii=False)}\n\n"
             f"Current Target File: {target_file}\n\n"
-            "Implement exactly this one file in this call. "
-            "You may call retrieve_context once for this file, and then you must call write_file "
-            f"for {target_file}. Do not move to any other file in this call."
+        )
+        if context:
+            content += f"=== AUTO-RETRIEVED CONTEXT ===\n{context}\n============================\n\n"
+        
+        content += (
+            "Implement exactly this one file in this call based on the retrieved context above. "
+            "You may call retrieve_context once ONLY if the auto-retrieved context is insufficient. "
+            f"Your primary action must be calling write_file or execution_loop for {target_file}. Do not move to any other file."
         )
         if attempt > 1:
             content += (
@@ -188,7 +195,7 @@ class CodeCrewPipeline:
             content += f"\n\nPrevious coder output for this file:\n{previous_response}"
         return Msg(name="user", content=content, role="user")
 
-    def _parse_file_plan(self, raw_plan: str) -> list[str]:
+    def _parse_file_plan_layers(self, raw_plan: str) -> list[list[str]]:
         text = (raw_plan or "").strip()
         if not text:
             return []
@@ -197,7 +204,7 @@ class CodeCrewPipeline:
             candidates.extend(part.strip() for part in text.split("```") if part.strip())
         candidates.extend(match.group(0) for match in re.finditer(r"\[[\s\S]*?\]", text))
 
-        best: list[str] = []
+        best: list[list[str]] = []
         for candidate in candidates:
             try:
                 data = json.loads(candidate)
@@ -205,32 +212,67 @@ class CodeCrewPipeline:
                 continue
             if not isinstance(data, list):
                 continue
-            parsed: list[str] = []
-            seen: set[str] = set()
-            for item in data:
-                if not isinstance(item, str):
-                    continue
-                normalized = self._normalize_project_path(item)
-                if normalized and normalized not in seen:
-                    parsed.append(normalized)
-                    seen.add(normalized)
-            if len(parsed) > len(best):
-                best = parsed
+            
+            # Check if it's already an array of arrays
+            if data and isinstance(data[0], list):
+                parsed_layers: list[list[str]] = []
+                seen: set[str] = set()
+                for layer in data:
+                    if not isinstance(layer, list):
+                        continue
+                    parsed_layer: list[str] = []
+                    for item in layer:
+                        if not isinstance(item, str):
+                            continue
+                        normalized = self._normalize_project_path(item)
+                        if normalized and normalized not in seen:
+                            parsed_layer.append(normalized)
+                            seen.add(normalized)
+                    if parsed_layer:
+                        parsed_layers.append(parsed_layer)
                 
+                flat_len = sum(len(layer) for layer in parsed_layers)
+                if flat_len > sum(len(layer) for layer in best):
+                    best = parsed_layers
+            else:
+                # Fallback: it's a flat list, put everything in one layer (or distinct layers to keep order)
+                # To be safe, we'll put them in strict sequential layers if they didn't follow instructions
+                parsed_layers: list[list[str]] = []
+                seen: set[str] = set()
+                for item in data:
+                    if not isinstance(item, str):
+                        continue
+                    normalized = self._normalize_project_path(item)
+                    if normalized and normalized not in seen:
+                        parsed_layers.append([normalized])
+                        seen.add(normalized)
+                        
+                if len(parsed_layers) > sum(len(layer) for layer in best):
+                    best = parsed_layers
+
         if not best:
-            fallback: list[str] = []
+            fallback_layers: list[list[str]] = []
+            seen_fallback: set[str] = set()
             for line in text.splitlines():
                 line = line.strip().strip('`"-*,# ')
                 if not line:
                     continue
                 if re.match(r'^/?([a-zA-Z0-9_\-\.]+/)+[a-zA-Z0-9_\-\.]+$|^[a-zA-Z0-9_\-\.]*\.[a-zA-Z0-9_\-]+$', line) or line in ("Makefile", "Dockerfile"):
                     normalized = self._normalize_project_path(line)
-                    if normalized and normalized not in fallback:
-                        fallback.append(normalized)
-            if fallback:
-                best = fallback
+                    if normalized and normalized not in seen_fallback:
+                        fallback_layers.append([normalized])
+                        seen_fallback.add(normalized)
+            if fallback_layers:
+                best = fallback_layers
                 
         return best
+
+    def _parse_file_plan(self, raw_plan: str) -> list[str]:
+        return [
+            path
+            for layer in self._parse_file_plan_layers(raw_plan)
+            for path in layer
+        ]
 
     def _extract_coder_action_input_block(self, response_text: str, action_name: str) -> str:
         if not response_text:
@@ -409,34 +451,54 @@ class CodeCrewPipeline:
         for stage_label, agent in stage_agents:
             print(f"[[AGENT:{stage_label}]]")
             if stage_label == "Coder":
-                file_plan = self._parse_file_plan(stage_outputs.get("FilePlanner", ""))
-                if not file_plan:
+                file_plan_layers = self._parse_file_plan_layers(stage_outputs.get("FilePlanner", ""))
+                if not file_plan_layers:
                     raise RuntimeError("Could not parse file plan from FilePlanner output.")
 
                 coder_logs: list[str] = []
-                current_files = self._generated_files_snapshot()
-                pending_files = [path for path in file_plan if path not in current_files]
+                
+                # We need a helper to run one file.
+                async def _generate_single_file(target_file: str, flat_file_plan: list[str]):
+                    current_files = self._generated_files_snapshot()
+                    if target_file in current_files:
+                        return f"## {target_file}\nFile already exists."
+                        
+                    # Pre-fetch semantic context
+                    context_data = ""
+                    if rag:
+                        try:
+                            # Using retrieve_structured to run RAG search in a background thread to prevent blocking
+                            res = await asyncio.to_thread(rag.retrieve_structured, query=f"Implementation details and interfaces for {target_file}", n_results=3)
+                            if res and res.hits:
+                                context_data = "\n\n".join(hit.text for hit in res.hits)
+                        except Exception as e:
+                            logger.warning(f"Failed to pre-fetch context for {target_file}: {e}")
 
-                for target_file in pending_files:
                     previous_response = ""
                     wrote_target = False
+                    logs = []
                     for attempt in range(1, 4):
                         message = self._build_coder_file_message(
                             task=task,
-                            file_plan=file_plan,
+                            file_plan=flat_file_plan,
                             target_file=target_file,
+                            context=context_data,
                             attempt=attempt,
                             previous_response=previous_response,
                         )
                         stage_buffer = io.StringIO()
                         with redirect_stdout(_TeeStream(sys.stdout, stage_buffer)):
-                            response = agent(message)
-                            if inspect.iscoroutine(response):
-                                response = await response
+                            try:
+                                response = agent(message)
+                                if inspect.iscoroutine(response):
+                                    response = await response
+                            except Exception as e:
+                                logger.error("Coder agent failed on %s: %s", target_file, str(e))
+                                response = Msg(name="Coder", content=f"ERROR: {str(e)}", role="assistant")
                         response_text = self._extract_response_text(response, stage_buffer.getvalue())
 
                         previous_response = response_text
-                        coder_logs.append(f"## {target_file} (attempt {attempt})\n{response_text}")
+                        logs.append(f"## {target_file} (attempt {attempt})\n{response_text}")
 
                         current_files = self._generated_files_snapshot()
                         if target_file not in current_files and self._recover_coder_write_from_response(target_file, response_text):
@@ -456,7 +518,24 @@ class CodeCrewPipeline:
                             "Coder stage ended before writing required files. "
                             f"Missing: {target_file}"
                         )
+                    return "\n\n".join(logs)
 
+                # Flatten the plan just for the prompt context, so the model sees the big picture
+                flat_file_plan = [f for layer in file_plan_layers for f in layer]
+                
+                for layer_idx, current_layer in enumerate(file_plan_layers):
+                    print(f"  -> Executing layer {layer_idx + 1}/{len(file_plan_layers)} in parallel: {current_layer}")
+                    
+                    tasks = [_generate_single_file(target, flat_file_plan) for target in current_layer]
+                    results = await asyncio.gather(*tasks)
+                    
+                    for r in results:
+                        coder_logs.append(r)
+                    
+                    # Optional: Run a light indexing here so the next layer has fresh context? 
+                    # The files are on disk, but not in RAG. Let's rely on standard text-based read_file for now or minimal indexing
+                    # if needed.
+                    
                 stage_outputs[stage_label] = "\n\n".join(coder_logs) if coder_logs else "No pending files."
                 await self._index_stage(rag, stage_label, stage_outputs[stage_label])
                 continue
@@ -483,9 +562,13 @@ class CodeCrewPipeline:
                     )
                 stage_buffer = io.StringIO()
                 with redirect_stdout(_TeeStream(sys.stdout, stage_buffer)):
-                    response = agent(message)
-                    if inspect.iscoroutine(response):
-                        response = await response
+                    try:
+                        response = agent(message)
+                        if inspect.iscoroutine(response):
+                            response = await response
+                    except Exception as e:
+                        logger.error("Agent %s failed: %s", stage_label, str(e))
+                        response = Msg(name=stage_label, content=f"ERROR: {str(e)}", role="assistant")
 
                 response_text = self._extract_response_text(response, stage_buffer.getvalue())
 
@@ -546,12 +629,12 @@ class CodeCrewPipeline:
             return
 
         if action == "files":
-            # Index all files currently in the output directory
-            n = rag.index_directory(self.output_dir)
+            # Index all files currently in the output directory via thread to prevent blocking
+            n = await asyncio.to_thread(rag.index_directory, self.output_dir)
             logger.info("RAG: indexed %d chunks from output dir after %s", n, stage_label)
         else:
-            # Index the agent's text output
-            n = rag.index(doc_id=action, text=output_text)
+            # Index the agent's text output via thread
+            n = await asyncio.to_thread(rag.index, doc_id=action, text=output_text)
             logger.info("RAG: indexed %d chunks for '%s' after %s", n, action, stage_label)
 
     # -------------------------------------------------------------------------

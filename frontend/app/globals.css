@@ -118,3 +118,7 @@
 .primary-button {
   @apply bg-primary text-primary-foreground rounded-xl px-6 py-3 font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background;
 }
+
+.secondary-button {
+  @apply bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-white/80 font-semibold transition-all hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20;
+}
