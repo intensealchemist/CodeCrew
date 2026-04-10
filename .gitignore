@@ -62,6 +62,9 @@ codecrew.db
 *.sqlite3
 ~$*.docx
 *.tmp
+*.log
+hs_err_pid*.log
+replay_pid*.log
 
 # Generated test scripts and reports
 /*.docx
